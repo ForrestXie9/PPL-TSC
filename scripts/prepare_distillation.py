@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Validate a source trajectory and create its distillation configuration offline."""
 import argparse
-import gzip
+import copy
 import hashlib
 import json
 from pathlib import Path
@@ -12,36 +12,36 @@ sys.path.insert(0, str(ROOT / 'src'))
 from ppl_tsc_current.artifact_io import atomic_json, new_gzip_jsonl
 
 
-def phase_projection(source, destination):
+def phase_projection(source, destination, *, loader=None):
     """Preserve physical teacher actions; remove native-only supervision fields."""
     source, destination = Path(source), Path(destination)
     if source.resolve() == destination.resolve() or destination.exists() or destination.is_symlink():
         raise ValueError('Projection output must be new and different from the source')
     digest = hashlib.sha256(source.read_bytes()).hexdigest()
-    opener = gzip.open if source.suffix == '.gz' else open
+    if loader is None:
+        from LLM_SR_DISTILLATION.data_loader import TeacherDataLoader
+        loader = TeacherDataLoader(str(source))
 
     def rows():
-        index = -1
-        with opener(source, 'rt') as stream:
-            for index, line in enumerate(line for line in stream if line.strip()):
-                row = json.loads(line)
-                if index == 0:
-                    row['meta'].update(action_interface='physical_phase_selection_projection',
-                                       native_trajectory_sha256=digest)
-                    row['meta'].pop('binary_supervision', None)
-                    row.setdefault('schema', {})['binary_interface'] = False
-                else:
-                    phases, action = row['phases'], row['teacher_action']
-                    if [phase['phase_id'] for phase in phases if phase.get('selected') is True] != [action]:
-                        raise ValueError('Physical phase labels are inconsistent')
-                    for key in ('teacher_binary_action', 'teacher_binary_q_values'):
-                        row.pop(key, None)
-                    for phase in phases:
-                        for key in ('binary_features', 'exact_binary_features'):
-                            phase['state'].pop(key, None)
-                yield row
-        if index < 1:
+        if not loader.timesteps:
             raise ValueError('Trajectory must contain a header and observations')
+        header = loader.get_header()
+        header['meta'].update(action_interface='physical_phase_selection_projection',
+                              native_trajectory_sha256=digest)
+        header['meta'].pop('binary_supervision', None)
+        header['schema']['binary_interface'] = False
+        yield header
+        for original in loader.timesteps:
+            row = copy.deepcopy(original)
+            phases, action = row['phases'], row['teacher_action']
+            if [phase['phase_id'] for phase in phases if phase.get('selected') is True] != [action]:
+                raise ValueError('Physical phase labels are inconsistent')
+            for key in ('teacher_binary_action', 'teacher_binary_q_values'):
+                row.pop(key, None)
+            for phase in phases:
+                for key in ('binary_features', 'exact_binary_features'):
+                    phase['state'].pop(key, None)
+            yield row
 
     new_gzip_jsonl(destination, rows())
 
@@ -90,7 +90,7 @@ def main():
         parser.error('Config already exists; choose a new output directory')
     if args.variant in {'EcoLight-phase-selection', 'EcoLight-naive'} and source_mode == 'binary_keep_switch':
         projected = output / 'phase_trajectory.jsonl.gz'
-        phase_projection(trajectory, projected)
+        phase_projection(trajectory, projected, loader=loader)
         trajectory = projected
     config['experiment'].update(
         name=f"{args.variant}__{meta['dataset']}__flow{meta['flow_idx']}",

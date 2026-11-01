@@ -59,7 +59,8 @@ class EcoLight(BaseDRL):
 class _Network(torch.nn.Module):
     def __init__(self, phase_2_passable_lane):
         super(_Network, self).__init__()
-        self.phase_2_passable_lane = phase_2_passable_lane.float()  # (num_phase, num_lane)
+        # Keep target-local topology out of portable learned checkpoints.
+        self.register_buffer('phase_2_passable_lane', phase_2_passable_lane.float(), persistent=False)
         self.net = torch.nn.Sequential(
             torch.nn.Linear(in_features=2, out_features=10),
             torch.nn.ReLU(),

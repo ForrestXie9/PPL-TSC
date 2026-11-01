@@ -40,9 +40,11 @@ class _Network(torch.nn.Module):
         super(_Network, self).__init__()
         self.num_lanelink = num_lanelink
         self.num_phase = num_phase
-        self.phase_2_passable_lanelink = phase_2_passable_lanelink
-        self.lanelink_2_applicable_phase = phase_2_passable_lanelink.permute(1, 0)  # num_lanelink * num_phase
-        self.phase_competition_mask = self._get_phase_competition_mask(phase_2_passable_lanelink)  # num_phase * (num_phase - 1)
+        # Topology belongs to this network, follows its device, and is rebuilt
+        # from the target environment rather than loaded from source weights.
+        self.register_buffer('phase_2_passable_lanelink', phase_2_passable_lanelink, persistent=False)
+        self.register_buffer('lanelink_2_applicable_phase', phase_2_passable_lanelink.permute(1, 0), persistent=False)
+        self.register_buffer('phase_competition_mask', self._get_phase_competition_mask(phase_2_passable_lanelink), persistent=False)
         self.dim_embedding = 4
         self.dim_hidden_repr = 16
         self.dim_conv_repr = 20  # section 4.3.5
@@ -107,7 +109,7 @@ class _Network(torch.nn.Module):
         return q_values
 
     def _get_phase_embedding_cube(self, batch_size, phase_embedding):
-        phase_embedding_cube = torch.zeros((batch_size, 32, self.num_phase, self.num_phase - 1))
+        phase_embedding_cube = phase_embedding.new_zeros((batch_size, self.dim_hidden_repr * 2, self.num_phase, self.num_phase - 1))
         for phase_idx in range(self.num_phase):
             continuous_jdx = 0
             for phase_jdx in range(self.num_phase):

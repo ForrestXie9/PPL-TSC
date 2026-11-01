@@ -125,12 +125,8 @@ def prepare_source(loader, teacher_model, observation_features, config, action_m
   need(road.is_file() and flow_file.is_file(),'Source roadnet/flow file missing')
   for key,path in [('roadnet_sha256',road),('flow_sha256',flow_file)]:
    if key in meta:need(hashlib.sha256(path.read_bytes()).hexdigest()==meta[key],f'Source {key} mismatch')
-  with loader._open_text() as stream:
-   if loader.json_file_path.lower().endswith(('.jsonl','.jsonl.gz')):
-    header=json.loads(next(line for line in stream if line.strip()))
-   else:header=json.load(stream)
   # Legacy phase rollouts may omit schema; aligned binary files must declare it.
-  header=dict(header,config=collector,stats=loader.stats)
+  header=loader.get_header()
   mode='binary_keep_switch' if action_mode=='binary_keep_switch' else 'phase_argmax'
   required=[]
   for feature in observation_features:

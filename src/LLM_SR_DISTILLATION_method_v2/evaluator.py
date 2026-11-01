@@ -218,40 +218,39 @@ class Evaluator:
             - 'average': Dict with averaged metrics across all intersections
             - 'per_intersection': Dict mapping intersection_id to its metrics
         """
+        if self.simulator is None:
+            raise ValueError('Control-performance evaluation requires a simulator and measured student ATT')
         intersection_ids = sorted(self.data_loader.intersection_ids)
         
         if feature_extractor is None:
             feature_extractor = self.feature_extractor.extract
         
         # Step 1: Run simulation ONCE to get network-wide average travel time
-        student_travel_time = self.teacher_travel_time
-        sim_metrics: Optional[SimulationResult] = None
-        if self.simulator is not None:
-            sim_metrics = self._compute_student_travel_time_simulation(
-                utility_function, parameters, per_intersection_bias=per_intersection_bias,
-                raise_on_error=raise_on_error
-            )
-            student_travel_time = float(sim_metrics.avg_travel_time)
-            if not np.isfinite(student_travel_time) or student_travel_time <= 0:
-                raise ValueError("Student ATT must be finite and positive")
-            if (
-                self.native_liveness_guard
-                and getattr(utility_function, "action_mode", None) == "binary_keep_switch"
-                and self._last_policy_decisions > 0
-            ):
-                switch_rate = self._last_policy_switches / self._last_policy_decisions
-                att_ratio = student_travel_time / self.teacher_travel_time
-                if switch_rate < 0.05 and att_ratio > 1.20:
-                    raise ValueError(
-                        "Native closed-loop liveness check failed: "
-                        f"switch_rate={switch_rate:.3f} < 0.05 and "
-                        f"source_ATT/teacher_ATT={att_ratio:.3f} > 1.20"
-                    )
-            if self.verbose:
-                print(
-                    f"    Network average travel time: {sim_metrics.avg_travel_time:.4f} | "
-                    f"Teacher travel time: {self.teacher_travel_time:.4f}"
+        sim_metrics = self._compute_student_travel_time_simulation(
+            utility_function, parameters, per_intersection_bias=per_intersection_bias,
+            raise_on_error=raise_on_error
+        )
+        student_travel_time = float(sim_metrics.avg_travel_time)
+        if not np.isfinite(student_travel_time) or student_travel_time <= 0:
+            raise ValueError("Student ATT must be finite and positive")
+        if (
+            self.native_liveness_guard
+            and getattr(utility_function, "action_mode", None) == "binary_keep_switch"
+            and self._last_policy_decisions > 0
+        ):
+            switch_rate = self._last_policy_switches / self._last_policy_decisions
+            att_ratio = student_travel_time / self.teacher_travel_time
+            if switch_rate < 0.05 and att_ratio > 1.20:
+                raise ValueError(
+                    "Native closed-loop liveness check failed: "
+                    f"switch_rate={switch_rate:.3f} < 0.05 and "
+                    f"source_ATT/teacher_ATT={att_ratio:.3f} > 1.20"
                 )
+        if self.verbose:
+            print(
+                f"    Network average travel time: {sim_metrics.avg_travel_time:.4f} | "
+                f"Teacher travel time: {self.teacher_travel_time:.4f}"
+            )
         
         # Compute Delta and exponential control performance (capped at 1).
         delta = self._compute_relative_performance_factor(student_travel_time)
@@ -1078,9 +1077,6 @@ class Evaluator:
                     per_intersection_bias[inter_id] = dict(zip(phase_ids, optimized_bias))
             except Exception as e:
                 raise RuntimeError(f"Calibration failed at {inter_id}: {e}") from e
-                if verbose:
-                    print(f"    Intersection {inter_id}: bias fit failed: {e}")
-                per_intersection_bias[inter_id] = dict(zip(phase_ids, [0.0] * n_phases))
 
         return per_intersection_bias
 
