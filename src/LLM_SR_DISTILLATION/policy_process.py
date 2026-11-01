@@ -49,6 +49,25 @@ class PolicyProcess:
                 p = Path(path).absolute()
                 if p.exists() and not any(p == q or p.is_relative_to(q) for q in mounted):
                     command += ["--ro-bind", str(p), str(p)]; mounted.append(p)
+            # A venv created from another venv can link through that older
+            # environment. Recreate only the interpreter chain, without
+            # exposing the older environment's packages or other files.
+            interpreter = Path(executable)
+            visited = set()
+            while True:
+                if interpreter in visited:
+                    raise PolicyExecutionError("Cyclic Python interpreter symlink")
+                visited.add(interpreter)
+                covered = any(interpreter == p or interpreter.is_relative_to(p) for p in mounted)
+                if interpreter.is_symlink():
+                    target = os.readlink(interpreter)
+                    if not covered:
+                        command += ["--dir", str(interpreter.parent), "--symlink", target, str(interpreter)]
+                    interpreter = Path(os.path.abspath(interpreter.parent / target))
+                else:
+                    if not covered:
+                        command += ["--ro-bind", str(interpreter), str(interpreter)]
+                    break
             command += ["--ro-bind", str(worker), "/worker.py", "--proc", "/proc", "--dev", "/dev",
                         "--dir", "/work", "--chdir", "/work",
                         executable, "-I", "-u", "/worker.py"]
