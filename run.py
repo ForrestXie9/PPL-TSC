@@ -623,8 +623,8 @@ def _build_internal_argv(
         meta = header.get("meta", {})
         if meta.get("model") == "TinyLight" and meta.get("environment_semantics", "legacy_per_read") != environment_semantics:
             raise ValueError("TinyLight trajectory feature semantics differ from the environment. "
-                             "Regenerate trajectories for corrected training; use configs/traffic_legacy.json "
-                             "only to reproduce the historical results.")
+                             "Regenerate trajectories for corrected training; historical replay requires "
+                             "a separate traffic config with waiting_time_semantics=legacy_per_read.")
 
     horizon_matched = True
     simulation_steps = evaluation.get("simulation_steps")

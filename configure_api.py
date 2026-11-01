@@ -28,9 +28,10 @@ PROVIDERS = {
         "auth_mode": "bearer",
     },
     "openai_compatible": {
-        "endpoint": "api.openai.com",
+        "endpoint": "api.n1n.ai",
         "request_path": "/v1/chat/completions",
-        "model": "gpt-4o-mini",
+        "model": "gemini-3.1-flash-lite",
+        "temperature": 0.8,
         "auth_mode": "bearer",
     },
     "local": {
@@ -41,6 +42,7 @@ PROVIDERS = {
     },
 }
 PREFERRED_MODELS = (
+    "gemini-3.1-flash-lite",
     "gpt-4o-mini",
     "gpt-4.1-mini",
     "gpt-4o",
@@ -182,7 +184,7 @@ def _prompt(label: str, default: str) -> str:
 
 
 def _choose_provider(default: str) -> str:
-    choices = ("yunwu", "openai_compatible", "local")
+    choices = ("openai_compatible", "yunwu", "local")
     print("API backend:")
     for index, name in enumerate(choices, start=1):
         marker = " (default)" if name == default else ""
@@ -259,7 +261,7 @@ def main() -> int:
         return _show()
 
     existing = _read_profile()
-    default_provider = str(existing.get("provider", "yunwu"))
+    default_provider = str(existing.get("provider", "openai_compatible"))
     provider = (
         args.provider
         or (default_provider if args.non_interactive else _choose_provider(default_provider))

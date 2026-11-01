@@ -15,7 +15,8 @@ sys.path.insert(0,str(ROOT/'src'))
 for key in ('OMP_NUM_THREADS','OPENBLAS_NUM_THREADS','MKL_NUM_THREADS','NUMEXPR_NUM_THREADS'):os.environ[key]='1'
 
 
-def validate_checkpoint_audit(checkpoint, audit_path, teacher, roadnet, allow_unaudited=False):
+def validate_checkpoint_audit(checkpoint, audit_path, teacher, roadnet, allow_unaudited=False,
+                              *, traffic_config=None, environment_semantics=None):
     """Collection is same-network replay, not implicit cross-network transfer."""
     if not audit_path.is_file():
         if not allow_unaudited:
@@ -27,6 +28,10 @@ def validate_checkpoint_audit(checkpoint, audit_path, teacher, roadnet, allow_un
     digest=lambda path:hashlib.sha256(path.read_bytes()).hexdigest()
     if audit.get('checkpoint_sha256')!=digest(checkpoint):raise ValueError('Checkpoint hash does not match training audit')
     if audit.get('roadnet_sha256')!=digest(roadnet):raise ValueError('Collection requires the original source roadnet; use explicit teacher transfer evaluation for another roadnet')
+    if traffic_config is not None and audit.get('traffic_config_sha256')!=digest(traffic_config):
+        raise ValueError('Traffic configuration differs from the teacher training audit')
+    if environment_semantics is not None and audit.get('environment_semantics')!=environment_semantics:
+        raise ValueError('Environment semantics differ from the teacher training audit')
     return {'status':'verified','training_audit_sha256':digest(audit_path),
             'source_scenario':audit['scenario'],'source_flow':audit['flow'],'source_seed':audit['seed']}
 
@@ -47,7 +52,8 @@ def main():
     if args.output.resolve() in {args.checkpoint.resolve(),audit_path.resolve()}:
         parser.error("Output must not overwrite the teacher checkpoint")
     if args.output.exists():parser.error('Trajectory output already exists; use a new path')
-    provenance=validate_checkpoint_audit(args.checkpoint,audit_path,args.teacher,ROOT/'data'/args.scenario/'roadnet.json',args.allow_unaudited_checkpoint)
+    provenance=validate_checkpoint_audit(args.checkpoint,audit_path,args.teacher,ROOT/'data'/args.scenario/'roadnet.json',args.allow_unaudited_checkpoint,
+                                         traffic_config=ROOT/'configs/traffic.json',environment_semantics='per_decision')
     import teacher_evaluation as evaluation
     import torch
     from LLM_SR_DISTILLATION.simulator import StudentSimulator
