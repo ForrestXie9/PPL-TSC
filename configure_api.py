@@ -99,6 +99,10 @@ def _headers(api_key: str, auth_mode: str) -> dict[str, str]:
     return headers
 
 
+def _redact_api_key(text: str, api_key: str) -> str:
+    return text.replace(api_key, "[redacted]") if api_key and api_key != "EMPTY" else text
+
+
 def _request_json(
     *,
     endpoint: str,
@@ -124,10 +128,12 @@ def _request_json(
         ) as response:
             body = response.read().decode("utf-8")
     except HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="replace")[:500]
-        raise RuntimeError(f"HTTP {exc.code} from {url}: {detail}") from exc
+        detail = _redact_api_key(exc.read().decode("utf-8", errors="replace"), api_key)[:500]
+        message = _redact_api_key(f"HTTP {exc.code} from {url}: {detail}", api_key)
+        raise RuntimeError(message) from None
     except URLError as exc:
-        raise RuntimeError(f"Cannot connect to {url}: {exc.reason}") from exc
+        message = _redact_api_key(f"Cannot connect to {url}: {exc.reason}", api_key)
+        raise RuntimeError(message) from None
     value = json.loads(body)
     if not isinstance(value, dict):
         raise RuntimeError(f"Expected a JSON object from {url}")

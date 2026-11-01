@@ -1,12 +1,12 @@
 """
 Simulation Module
-Run a student policy defined by a UtilityFunction in the CityFlow-based TSCEnv and compute average delay.
+Run a student policy in CityFlow and return travel time and supporting traffic metrics.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional
 from math import pi
 
 import numpy as np
@@ -14,20 +14,9 @@ import numpy as np
 from env import TSCEnv
 
 
-def _aggregate_by_mask(vec: np.ndarray, mask: List[int]) -> float:
-    if vec is None:
-        return 0.0
-    v = np.asarray(vec, dtype=float).reshape(-1)
-    m = np.asarray(mask, dtype=float).reshape(-1)
-    if v.shape[0] != m.shape[0]:
-        # Mismatch: fall back to sum of vec
-        return float(np.sum(v))
-    return float(np.sum(v * m))
-
-
 def _get_direction_code_from_roadlink(roadlink, inter, env) -> Optional[str]:
     """
-    Match collect_teacher_data.py: map a roadlink to direction code like 'WT', 'WL', 'ER'.
+    Match collect_teacher.py: map a roadlink to a direction code such as 'WT', 'WL', 'ER'.
     """
     start_road_obj = env.id2road.get(roadlink.startroad_id)
     if start_road_obj is None:
@@ -70,8 +59,8 @@ class SimulationResult:
     """
     Aggregate KPIs from one simulation episode.
 
-    For the distillation objective, we treat avg_travel_time as D_S in the
-    score definition Acc × exp(-α ΔD), where ΔD is defined on travel time.
+    The evaluator uses avg_travel_time for the configured control score;
+    behavioral fidelity is evaluated separately on source teacher observations.
     """
 
     avg_travel_time: float

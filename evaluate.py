@@ -34,15 +34,19 @@ def validate_bias_support(bias, phase_counts):
 
 def validate_deployment(deployment: dict, roadnet_hash: str) -> dict[int, dict[int, float]]:
     """Preserve source calibration and reject unmapped intersection biases."""
+    if not isinstance(deployment, dict):
+        raise ValueError("Deployment must be a JSON object")
     if deployment.get("action_mode") not in {"phase_argmax", "keep_switch", "binary_keep_switch"}:
         raise ValueError("Deployment must specify a supported action_mode")
     if not isinstance(deployment.get("feature_stats"), dict):
         raise ValueError("Deployment must contain frozen feature_stats")
     run_config = deployment.get("run_config", {})
+    if not isinstance(run_config, dict):
+        raise ValueError("Deployment run_config must be a JSON object")
     if run_config.get("feature_contract_version") not in {None, "raw_direction_features_v1", "normalized_phase_features_v1", "normalized_phase_features_v2"}:
         raise ValueError("Unknown feature contract; refusing silent normalization fallback")
-    if run_config.get("direction_feature_semantics", "legacy_first_match") not in {"legacy_first_match", "compatible_shared_lane_mean_v1"}:
-        raise ValueError("Unknown direction feature semantics")
+    from ppl_tsc_current.shared_lane import restore_contract
+    restore_contract({}, run_config)
     raw = deployment.get("per_intersection_bias", {})
     if not isinstance(raw, dict) or any(not isinstance(v, dict) for v in raw.values()):
         raise ValueError("Malformed per_intersection_bias")
@@ -78,13 +82,11 @@ def main() -> int:
     from ppl_tsc_current.artifact_io import evaluation_record
     with evaluation_record(args.output, {"deployment_path": str(args.deployment.resolve()), "scenario": args.scenario, "flow": args.flow}) as commit_result:
         deployment = json.loads(args.deployment.read_text())
-        run_config = deployment.get("run_config", {})
         scenario_dir = ROOT / "data" / args.scenario
         roadnet = scenario_dir / "roadnet.json"
         flow = scenario_dir / f"flow_{args.flow}.json"
-        from ppl_tsc_current.shared_lane import restore_contract
-        restore_contract({}, run_config)
         bias = validate_deployment(deployment, file_hash(roadnet))
+        run_config = deployment.get("run_config", {})
         if args.steps is None and run_config.get("dataset") != args.scenario:
             parser.error("--steps is required for a different target scenario")
         steps = args.steps if args.steps is not None else run_config.get("simulation_steps")
