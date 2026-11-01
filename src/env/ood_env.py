@@ -68,7 +68,6 @@ class OODTSCEnv(TSCEnv):
         n_next_obs = self._get_n_obs()
         n_reward = self._get_n_reward()
         n_done = self._get_n_done()
-        info = self._get_info()
         self.n_obs = n_next_obs
 
         if (
@@ -84,7 +83,7 @@ class OODTSCEnv(TSCEnv):
                 self._update_average_delay()
             if "world_2_average_throughput" in metric_features:
                 self._update_average_throughput()
-        return n_next_obs, n_reward, n_done, info
+        return n_next_obs, n_reward, n_done, self._get_info()
 
     def incident_report(self) -> dict[str, Any]:
         if not self.incident:

@@ -7,7 +7,7 @@ try:
     import gymnasium as gym
 except ImportError:
     import gym  # fallback for older systems
-from math import sqrt, floor
+from math import sqrt, floor, isfinite
 
 from .road import Road
 from .intersection import Intersection
@@ -204,8 +204,6 @@ class TSCEnv:
         n_next_obs = self._get_n_obs()
         n_reward = self._get_n_reward()
         n_done = self._get_n_done()
-        info = self._get_info()
-
         self.n_obs = n_next_obs
 
         if self.config['current_episode_step_idx'] % 60 == 0 and self.config['current_episode_step_idx'] > 0:
@@ -217,7 +215,7 @@ class TSCEnv:
             if 'world_2_average_throughput' in metric_feature_list:
                 self._update_average_throughput()
 
-        return n_next_obs, n_reward, n_done, info
+        return n_next_obs, n_reward, n_done, self._get_info()
 
     def render(self, inter_idx):
         from gym.envs.classic_control import rendering
@@ -864,19 +862,26 @@ class TSCEnv:
         return self.eng.get_average_travel_time(), self.eng.get_std_travel_time()
 
     def _world_2_average_queue_length(self):
-        sample_number = self._cache_queue_length[0]
-        mean = (self._cache_queue_length[1] / sample_number) if sample_number > 0 else 0
-        std = sqrt(self._cache_queue_length[2] / sample_number - mean * mean) if sample_number > 1 else 0
-        return mean, std
+        return self._metric_mean_std(self._cache_queue_length)
 
     def _world_2_average_throughput(self):
-        sample_number = self._cache_throughput[0]
-        mean = (self._cache_throughput[1] / sample_number) if sample_number > 0 else 0
-        std = sqrt(self._cache_throughput[2] / sample_number - mean * mean) if sample_number > 1 else 0
-        return mean, std
+        return self._metric_mean_std(self._cache_throughput)
 
     def _world_2_average_delay(self):
-        sample_number = self._cache_average_delay[0]
-        mean = (self._cache_average_delay[1] / sample_number) if sample_number > 0 else 0
-        std = sqrt(self._cache_average_delay[2] / sample_number - mean * mean) if sample_number > 1 else 0
-        return mean, std
+        return self._metric_mean_std(self._cache_average_delay)
+
+    @staticmethod
+    def _metric_mean_std(cache):
+        count, total, squared_total = cache[:3]
+        if count == 0:
+            return 0., 0.
+        mean = total / count
+        second_moment = squared_total / count
+        variance = second_moment - mean * mean
+        if count < 0 or not all(isfinite(value) for value in (mean, second_moment, variance)):
+            raise ValueError('Invalid accumulated traffic metric')
+        # Cancellation can make a constant sample's variance slightly negative.
+        tolerance = 1e-12 * max(1., abs(second_moment), mean * mean)
+        if variance < -tolerance:
+            raise ValueError('Invalid negative traffic metric variance')
+        return float(mean), sqrt(max(0., variance)) if count > 1 else 0.

@@ -183,7 +183,7 @@ class _Network(torch.nn.Module):
         agent_embedding = self.embedding_mlp(all_flatten_feature)  # batch * dim_embedding
 
         n_neighbor_embedding = torch.stack([
-            self.env.n_agent[0].network_local.embedding_mlp(_pad_obs(n_obs[neighbor_idx], expected_dim))
+            self.embedding_mlp(_pad_obs(n_obs[neighbor_idx], expected_dim))
             for neighbor_idx in n_neighbor_idx
         ], dim=1)  # batch * num_neighbor * dim_embedding
 
