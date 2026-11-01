@@ -3,10 +3,7 @@
 from __future__ import annotations
 
 import copy
-import json
-import os
 import random
-import sys
 import time
 from pathlib import Path
 from typing import Any, Callable
@@ -15,19 +12,6 @@ import numpy as np
 import torch
 
 
-# All imports resolve inside this standalone artifact.
-WORKSPACE = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(WORKSPACE / "src"))
-
-from LLM_SR_DISTILLATION_method_v2.feature_extractor import (  # noqa: E402
-    build_feature_extractor,
-)
-from LLM_SR_DISTILLATION_method_v2.function_utility import (  # noqa: E402
-    FunctionUtility,
-)
-from LLM_SR_DISTILLATION_method_v2.simulator import (  # noqa: E402
-    StudentSimulator,
-)
 from utilities.utils import (  # noqa: E402
     copy_model_params,
     get_agent,
@@ -37,19 +21,6 @@ from utilities.utils import (  # noqa: E402
 )
 
 from env.ood_env import OODTSCEnv  # noqa: E402
-
-
-
-def normalize_bias(raw: Any) -> dict[int, dict[int, float]]:
-    if not isinstance(raw, dict):
-        return {}
-    return {
-        int(intersection): {
-            int(phase): float(value) for phase, value in phases.items()
-        }
-        for intersection, phases in raw.items()
-        if isinstance(phases, dict)
-    }
 
 
 def extract_metrics(info: dict[str, Any], env: OODTSCEnv) -> dict[str, float]:
@@ -222,90 +193,3 @@ def teacher_action_builder(
         int(agent.pick_action(observations, on_training=False))
         for agent in controller["agents"]
     ]
-
-
-def build_student_controller(
-    config: dict[str, Any],
-    teacher: str,
-    deployment: dict[str, Any],
-    expected_action_mode: str | None = None,
-) -> dict[str, Any]:
-    from ppl_tsc_current.shared_lane import restore_contract
-    config=restore_contract(copy.deepcopy(config),deployment.get("run_config",{}))
-    if deployment.get("run_config",{}).get("method_profile")=="full_100_256_v1":
-        import hashlib
-        raw_bias=deployment.get("per_intersection_bias") or {}
-        if any(float(v)!=0. for phases in raw_bias.values() for v in phases.values()):
-            roadnet=Path(config['dir'])/config.get('roadnetFile','roadnet.json')
-            if hashlib.sha256(roadnet.read_bytes()).hexdigest()!=deployment['run_config'].get('source_roadnet_sha256'):
-                raise ValueError('Current source biases require the identical roadnet')
-    teacher_cfg = config.get(teacher)
-    if not isinstance(teacher_cfg, dict):
-        raise KeyError(f"Teacher {teacher} missing from traffic config")
-    observation_features = list(
-        teacher_cfg.get("observation_feature_list", [])
-    )
-    feature_stats = deployment.get("feature_stats") or {}
-    feature_contract = deployment.get("run_config", {}).get("feature_contract_version")
-    extractor = build_feature_extractor(
-        teacher_model=teacher,
-        observation_feature_list=observation_features,
-        feature_stats=feature_stats,
-        normalize_features=feature_contract in {"normalized_phase_features_v1", "normalized_phase_features_v2"},
-        clip_normalized=feature_contract == "normalized_phase_features_v1",
-    )
-    extractor.feature_stats = feature_stats
-    saved_action_mode = str(
-        deployment.get("action_mode") or "phase_argmax"
-    )
-    if (
-        expected_action_mode is not None
-        and saved_action_mode != expected_action_mode
-    ):
-        raise ValueError(
-            f"Deployment action mode is {saved_action_mode!r}, expected "
-            f"{expected_action_mode!r}"
-        )
-    utility = FunctionUtility(
-        deployment["function_code"],
-        feature_extractor=extractor,
-        feature_stats=feature_stats,
-        action_mode=saved_action_mode,
-    )
-    return {
-        "helper": StudentSimulator(
-            copy.deepcopy(config),
-            observation_feature_list=observation_features,
-        ),
-        "utility": utility,
-        "feature_stats": feature_stats,
-        "bias": normalize_bias(
-            deployment.get("per_intersection_bias")
-        ),
-        "latest_observations": None,
-    }
-
-
-def student_action_builder(
-    env: OODTSCEnv,
-    controller: dict[str, Any],
-    _current_step: int,
-) -> list[int]:
-    actions: list[int] = []
-    for intersection_idx in range(env.n):
-        state_dict = controller["helper"].build_phase_state_dict(
-            env, intersection_idx
-        )
-        actions.append(
-            int(
-                controller["utility"].select_action(
-                    state_dict,
-                    feature_stats=controller["feature_stats"],
-                    phase_bias=controller["bias"].get(
-                        intersection_idx
-                    ),
-                    raise_on_error=True,
-                )
-            )
-        )
-    return actions

@@ -11,14 +11,14 @@ import json
 import os
 from typing import Dict, List, Optional, Any
 
-from LLM_SR_DISTILLATION_method_v2.data_loader import TeacherDataLoader
+from LLM_SR_DISTILLATION.data_loader import TeacherDataLoader
 from LLM_SR_DISTILLATION.feature_statistics import merge_feature_statistics
-from LLM_SR_DISTILLATION_method_v2.constraint_validator import ConstraintValidator
-from LLM_SR_DISTILLATION_method_v2.llm_generator import LLMGenerator
+from LLM_SR_DISTILLATION.constraint_validator import ConstraintValidator
+from LLM_SR_DISTILLATION.llm_generator import LLMGenerator
 from LLM_SR_DISTILLATION_method_v2.evaluator import Evaluator
 from LLM_SR_DISTILLATION_method_v2.evolution import Evolution
-from LLM_SR_DISTILLATION_method_v2.feature_extractor import build_feature_extractor
-from LLM_SR_DISTILLATION_method_v2.simulator import StudentSimulator
+from LLM_SR_DISTILLATION.feature_extractor import build_feature_extractor
+from LLM_SR_DISTILLATION.simulator import StudentSimulator
 from LLM_SR_DISTILLATION_method_v2.multi_roadnet.multi_roadnet_evaluator import MultiRoadnetEvaluator
 from utilities.utils import (
     get_config,
@@ -312,10 +312,7 @@ def run_multi_roadnet_distillation(
 def main():
     parser = argparse.ArgumentParser(
         description="One-teacher multi-roadnet joint distillation",
-        epilog="""
-Example:
-  python -m LLM_SR_DISTILLATION_method_v2.multi_roadnet.main --config multi_roadnet/teachers_config_multi_roadnet_example.json
-""",
+        epilog='Use the public run.py entrypoint with a prepared JSON config for the standard workflow.',
     )
     parser.add_argument("--config", type=str, required=True, help="JSON config path (teacher_model + roadnet_configs)")
     parser.add_argument("--config_path", type=str, default="configs/traffic.json", help="Traffic config path")
@@ -327,12 +324,10 @@ Example:
         "--llm_backend",
         type=str,
         default="1",
-        choices=["1", "2", "3", "4"],
+        choices=["1", "3", "4"],
         help=(
-            "Default 1: general gateway (optional general_llm_embedded.py); "
-            "2=COMP（comp_llm_embedded.py）；"
-            "3: Jiekou.AI (optional jiekou_llm_embedded.py). Omission selects 1 and ignores a stale LLM_BACKEND. "
-            "4: Yunwu (yunwu_llm_embedded.py). "
+            "1: general OpenAI-compatible API (default); 3: Jiekou; 4: Yunwu. "
+            "Explicit CLI and environment settings override preset defaults."
         ),
     )
     parser.add_argument("--population_size", type=int, default=5)
@@ -417,7 +412,6 @@ Example:
         llm_api_endpoint,
         llm_model,
         title="LLM configuration (multiple road networks)",
-        cli_llm_model=args.llm_model,
     )
 
     if "output_dir" in multi_cfg:

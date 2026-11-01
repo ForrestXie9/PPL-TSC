@@ -38,243 +38,47 @@ def normalize_llm_api_host(api_endpoint: Optional[str]) -> str:
 
 
 def resolve_llm_connection_settings(
-    args_endpoint: Optional[str],
-    args_key: Optional[str],
-    args_model: Optional[str],
+    args_endpoint: Optional[str], args_key: Optional[str], args_model: Optional[str]
 ):
-    """
-    Merge CLI with env. Argparse should use default=None so LLM_API_ENDPOINT / LLM_MODEL are honored.
-
-    **Embedded profiles** (optional modules under ``LLM_SR_DISTILLATION_method_v2``):
-
-    - ``--llm_backend 2`` / ``LLM_BACKEND=comp``: ``comp_llm_embedded`` → ``COMP_*`` constants.
-    - ``--llm_backend 3`` / ``LLM_BACKEND=jiekou``: ``jiekou_llm_embedded`` → ``JIEKOU_*`` constants.
-    - ``--llm_backend 4`` / ``LLM_BACKEND=yunwu``: ``yunwu_llm_embedded`` → ``YUNWU_*`` constants.
-    - ``--llm_backend 1`` / general: ``general_llm_embedded`` → ``GENERAL_*`` constants.
-
-    **Endpoint / key**: ``CLI > LLM_* env > embedded_* > built-in default host``.
-
-    **Model / deployment name**:
-
-    - ``--llm_model`` always wins if provided.
-
-    **COMP**: non-empty embedded ``COMP_MODEL`` is used **before** ``LLM_MODEL`` (avoids stale global env).
-
-    **General / Jiekou**: non-empty embedded ``GENERAL_MODEL`` / ``JIEKOU_MODEL`` before ``LLM_MODEL``;
-    fallback ``gpt-3.5-turbo`` (general) or ``gpt-4o-mini`` (Jiekou)。
-    """
+    """Resolve CLI values, then environment values, then gateway defaults."""
     backend = (os.getenv("LLM_BACKEND") or "").strip().lower()
-    is_comp = backend in ("comp", "comp_openai", "azure_apim", "azure")
-    is_jiekou = backend in ("jiekou", "jiekou_ai")
-    is_yunwu = backend in ("yunwu", "yunwu_ai")
-
-    embedded = None
-    if is_comp:
-        try:
-            from LLM_SR_DISTILLATION_method_v2 import comp_llm_embedded as embedded
-        except ImportError:
-            embedded = None
-
-    jk_emb_mod = None
-    if is_jiekou:
-        try:
-            from LLM_SR_DISTILLATION_method_v2 import jiekou_llm_embedded as jk_emb_mod
-        except ImportError:
-            jk_emb_mod = None
-
-    yw_emb_mod = None
-    if is_yunwu:
-        try:
-            from LLM_SR_DISTILLATION_method_v2 import yunwu_llm_embedded as yw_emb_mod
-        except ImportError:
-            yw_emb_mod = None
-
-    gen_emb = None
-    if not is_comp and not is_jiekou and not is_yunwu:
-        try:
-            from LLM_SR_DISTILLATION_method_v2 import general_llm_embedded as gen_emb
-        except ImportError:
-            gen_emb = None
-
-    emb_ep = ""
-    emb_key = ""
-    emb_model = ""
-    if embedded is not None:
-        emb_ep = (getattr(embedded, "COMP_API_ENDPOINT", "") or "").strip()
-        emb_key = (getattr(embedded, "COMP_API_KEY", "") or "").strip()
-        emb_model = (getattr(embedded, "COMP_MODEL", "") or "").strip()
-
-    jk_ep = ""
-    jk_key = ""
-    jk_model = ""
-    if jk_emb_mod is not None:
-        jk_ep = (getattr(jk_emb_mod, "JIEKOU_API_ENDPOINT", "") or "").strip()
-        jk_key = (getattr(jk_emb_mod, "JIEKOU_API_KEY", "") or "").strip()
-        jk_model = (getattr(jk_emb_mod, "JIEKOU_MODEL", "") or "").strip()
-
-    yw_ep = ""
-    yw_key = ""
-    yw_model = ""
-    if yw_emb_mod is not None:
-        yw_ep = (getattr(yw_emb_mod, "YUNWU_API_ENDPOINT", "") or "").strip()
-        yw_key = (getattr(yw_emb_mod, "YUNWU_API_KEY", "") or "").strip()
-        yw_model = (getattr(yw_emb_mod, "YUNWU_MODEL", "") or "").strip()
-
-    gen_ep = ""
-    gen_key = ""
-    gen_model = ""
-    if gen_emb is not None:
-        gen_ep = (getattr(gen_emb, "GENERAL_API_ENDPOINT", "") or "").strip()
-        gen_key = (getattr(gen_emb, "GENERAL_API_KEY", "") or "").strip()
-        gen_model = (getattr(gen_emb, "GENERAL_MODEL", "") or "").strip()
-
-    ep_cli_or_env = (args_endpoint if args_endpoint else (os.getenv("LLM_API_ENDPOINT") or "")).strip()
-    if is_comp:
-        endpoint = normalize_llm_api_host(
-            ep_cli_or_env or emb_ep or "comp.azure-api.net"
-        )
-    elif is_jiekou:
-        endpoint = normalize_llm_api_host(ep_cli_or_env or jk_ep or "api.jiekou.ai")
-    elif is_yunwu:
-        endpoint = normalize_llm_api_host(ep_cli_or_env or yw_ep or "yunwu.ai")
+    if backend in {"comp", "comp_openai", "azure_apim", "azure"}:
+        raise ValueError("The private COMP/Azure adapter is not included; use an OpenAI-compatible provider")
+    if backend in {"jiekou", "jiekou_ai"}:
+        default_endpoint, default_model = "api.jiekou.ai", "gpt-4o-mini"
+    elif backend in {"yunwu", "yunwu_ai"}:
+        default_endpoint, default_model = "yunwu.ai", "gpt-4o-mini"
     else:
-        endpoint = normalize_llm_api_host(ep_cli_or_env or gen_ep or "api.bltcy.ai")
-
-    key_raw = args_key if args_key else os.getenv("LLM_API_KEY", "")
-    key = (key_raw or "").strip()
-    if not key:
-        if is_comp:
-            key = emb_key
-        elif is_jiekou:
-            key = jk_key
-        elif is_yunwu:
-            key = yw_key
-        else:
-            key = gen_key
-
-    # Model: CLI > embedded (per backend, if non-empty) > LLM_MODEL > fallback
-    if args_model:
-        model = args_model.strip()
-    elif is_comp and emb_model:
-        model = emb_model
-    elif is_jiekou and jk_model:
-        model = jk_model
-    elif is_yunwu and yw_model:
-        model = yw_model
-    elif (not is_comp) and (not is_jiekou) and (not is_yunwu) and gen_model:
-        model = gen_model
-    else:
-        model = os.getenv("LLM_MODEL") or ""
-
-    if not model:
-        if is_comp:
-            model = "gpt4o"
-        elif is_jiekou:
-            model = "gpt-4o-mini"
-        elif is_yunwu:
-            model = "gpt-4o-mini"
-        else:
-            model = "gpt-3.5-turbo"
-
+        default_endpoint, default_model = "127.0.0.1:8000", "qwen2.5-32b"
+    endpoint = normalize_llm_api_host(args_endpoint or os.getenv("LLM_API_ENDPOINT") or default_endpoint)
+    key = (args_key or os.getenv("LLM_API_KEY") or "").strip()
+    model = (args_model or os.getenv("LLM_MODEL") or default_model).strip()
     return endpoint, key, model
 
 
 def llm_api_key_missing_message() -> str:
-    """
-    Short hint for ValueError when no API key was resolved (depends on ``LLM_BACKEND`` env).
-    Call **after** ``apply_llm_backend_cli_choice`` so COMP vs general is accurate.
-    """
-    backend = (os.getenv("LLM_BACKEND") or "").strip().lower()
-    if backend in ("comp", "comp_openai", "azure_apim", "azure"):
-        return (
-            "LLM API key missing. Set LLM_API_KEY, pass --llm_api_key, "
-            "or configure COMP_API_KEY in LLM_SR_DISTILLATION_method_v2/comp_llm_embedded.py."
-        )
-    if backend in ("jiekou", "jiekou_ai"):
-        return (
-            "LLM API key missing. Set LLM_API_KEY, pass --llm_api_key, "
-            "or configure JIEKOU_API_KEY in LLM_SR_DISTILLATION_method_v2/jiekou_llm_embedded.py."
-        )
-    if backend in ("yunwu", "yunwu_ai"):
-        return (
-            "LLM API key missing. Set LLM_API_KEY, pass --llm_api_key, "
-            "or configure YUNWU_API_KEY in LLM_SR_DISTILLATION_method_v2/yunwu_llm_embedded.py."
-        )
-    return (
-        "LLM API key missing. Set LLM_API_KEY, pass --llm_api_key, "
-        "or configure GENERAL_API_KEY in LLM_SR_DISTILLATION_method_v2/general_llm_embedded.py."
-    )
+    """Describe the supported credential configuration without referencing source profiles."""
+    return "LLM API key missing. Run configure_api.py, set LLM_API_KEY, or pass --llm_api_key."
 
 
 def apply_llm_backend_cli_choice(cli_choice: Optional[str]) -> None:
-    """Map --llm_backend 1|2|3|4 into the process environment.
-
-    The default is 1, including when omitted; this clears a stale LLM_BACKEND.
-    run_llm and resolve_llm_connection_settings use the resulting selection."""
+    """Select a public gateway preset while preserving explicit environment settings."""
     if cli_choice is None:
         return
-    c = str(cli_choice).strip()
-    if c == "2":
-        os.environ["LLM_BACKEND"] = "comp"
-        try:
-            from LLM_SR_DISTILLATION_method_v2 import comp_llm_embedded as _emb
-
-            v = (getattr(_emb, "COMP_API_VERSION", "") or "").strip()
-            if v:
-                os.environ.setdefault("LLM_API_VERSION", v)
-            t = (getattr(_emb, "COMP_TEMPERATURE", "") or "").strip()
-            if t:
-                os.environ.setdefault("LLM_TEMPERATURE", t)
-        except ImportError:
-            pass
-    elif c == "3":
-        os.environ["LLM_BACKEND"] = "jiekou"
-        try:
-            from LLM_SR_DISTILLATION_method_v2 import jiekou_llm_embedded as _jk
-
-            rp = (getattr(_jk, "JIEKOU_REQUEST_PATH", "") or "").strip()
-            if rp:
-                os.environ.setdefault("LLM_REQUEST_PATH", rp)
-            am = (getattr(_jk, "JIEKOU_AUTH_MODE", "") or "").strip()
-            if am:
-                os.environ.setdefault("LLM_AUTH_MODE", am)
-            t = (getattr(_jk, "JIEKOU_TEMPERATURE", "") or "").strip()
-            if t:
-                os.environ.setdefault("LLM_TEMPERATURE", t)
-        except ImportError:
-            pass
-    elif c == "4":
-        os.environ["LLM_BACKEND"] = "yunwu"
-        try:
-            from LLM_SR_DISTILLATION_method_v2 import yunwu_llm_embedded as _yw
-
-            rp = (getattr(_yw, "YUNWU_REQUEST_PATH", "") or "").strip()
-            if rp:
-                os.environ.setdefault("LLM_REQUEST_PATH", rp)
-            am = (getattr(_yw, "YUNWU_AUTH_MODE", "") or "").strip()
-            if am:
-                os.environ.setdefault("LLM_AUTH_MODE", am)
-            t = (getattr(_yw, "YUNWU_TEMPERATURE", "") or "").strip()
-            if t:
-                os.environ.setdefault("LLM_TEMPERATURE", t)
-        except ImportError:
-            pass
-    elif c == "1":
+    choice = str(cli_choice).strip()
+    if choice == "2":
+        raise ValueError("Backend 2 requires an unbundled private adapter; use backend 1 instead")
+    if choice not in {"1", "3", "4"}:
+        raise ValueError("LLM backend must be 1 (general), 3 (Jiekou), or 4 (Yunwu)")
+    if choice == "1":
         os.environ.pop("LLM_BACKEND", None)
-        try:
-            from LLM_SR_DISTILLATION_method_v2 import general_llm_embedded as _g
-
-            rp = (getattr(_g, "GENERAL_REQUEST_PATH", "") or "").strip()
-            if rp:
-                os.environ.setdefault("LLM_REQUEST_PATH", rp)
-            am = (getattr(_g, "GENERAL_AUTH_MODE", "") or "").strip()
-            if am:
-                os.environ.setdefault("LLM_AUTH_MODE", am)
-            t = (getattr(_g, "GENERAL_TEMPERATURE", "") or "").strip()
-            if t:
-                os.environ.setdefault("LLM_TEMPERATURE", t)
-        except ImportError:
-            pass
+    else:
+        os.environ["LLM_BACKEND"] = "jiekou" if choice == "3" else "yunwu"
+    request_path = "/openai/v1/chat/completions" if choice == "3" else "/v1/chat/completions"
+    os.environ.setdefault("LLM_REQUEST_PATH", request_path)
+    os.environ.setdefault("LLM_AUTH_MODE", "bearer")
+    if choice in {"1", "4"}:
+        os.environ.setdefault("LLM_TEMPERATURE", "0")
 
 
 def validate_cityflow_roadnet_file(data_dir: str, roadnet_file: str = "roadnet.json") -> None:

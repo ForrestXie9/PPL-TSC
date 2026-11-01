@@ -4,7 +4,6 @@ import numpy as np
 import ast
 import copy
 import os
-from utils.constraint_checker import check_generated_function_for_teacher_model
 from LLM_SR_DISTILLATION.expression_validator_tests import ExpressionValidatorTests
 from LLM_SR_DISTILLATION.proved_numeric_bounds import DivisionCheck, check_division_safety
 from LLM_SR_DISTILLATION.numerical_safety import signed_boundary_states

@@ -7,9 +7,9 @@ import time
 import traceback
 import numpy as np
 from typing import List, Dict, Tuple, Optional, Any
-from LLM_SR_DISTILLATION_method_v2.function_utility import FunctionUtility
-from LLM_SR_DISTILLATION_method_v2.constraint_validator import ConstraintValidator
-from LLM_SR_DISTILLATION_method_v2.llm_generator import LLMGenerator
+from LLM_SR_DISTILLATION.function_utility import FunctionUtility
+from LLM_SR_DISTILLATION.constraint_validator import ConstraintValidator
+from LLM_SR_DISTILLATION.llm_generator import LLMGenerator
 from LLM_SR_DISTILLATION_method_v2.evaluator import Evaluator
 
 
