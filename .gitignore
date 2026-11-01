@@ -11,3 +11,5 @@ outputs/
 *.pt
 CityFlow/build/
 CityFlow/dist/
+.cache/
+configs/api.local.json

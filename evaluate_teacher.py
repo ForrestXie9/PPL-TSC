@@ -3,7 +3,7 @@
 import argparse,hashlib,json,sys,math
 from pathlib import Path
 ROOT=Path(__file__).resolve().parent
-sys.path[:0]=[str(ROOT/'src'),str(ROOT/'benchmarks/OOD_Robustness')]
+sys.path.insert(0,str(ROOT/'src'))
 
 def sha(p):return hashlib.sha256(Path(p).read_bytes()).hexdigest()
 
@@ -14,7 +14,7 @@ def resolve_seed(explicit_seed,audit):
 
 def load_source_zero(env,config,checkpoint):
  import torch
- import evaluation
+ import teacher_evaluation as evaluation
  payload=torch.load(checkpoint,map_location='cpu',weights_only=False)
  if payload.get('parameter_sharing') is True or 'shared_local' in payload:
   raise ValueError('Experimental Shared checkpoint is not an original-family checkpoint')
@@ -50,7 +50,7 @@ def main():
   if audit.get('status')!='complete':p.error('Teacher training audit is not complete')
   a.seed=resolve_seed(a.seed,audit)
   if audit['checkpoint_sha256']!=sha(a.checkpoint):p.error('Checkpoint does not match training audit')
-  import evaluation
+  import teacher_evaluation as evaluation
   horizon={'Atlanta':900,'LosAngeles':1800}.get(a.scenario,3600)
   config=evaluation.build_config(ROOT/'configs/traffic.json',teacher,a.scenario,a.flow,a.seed,horizon,ROOT/'data'/a.scenario)
   config.update(waiting_time_semantics='per_decision',direction_feature_semantics='compatible_shared_lane_mean_v1')

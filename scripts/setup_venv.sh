@@ -18,7 +18,7 @@ if [[ -n "${PPL_TSC_TORCH_WHEEL:-}" ]]; then
 fi
 .venv/bin/python -m pip install --index-url https://pypi.org/simple \
   --timeout 30 --retries 3 --cache-dir outputs/setup_cache \
-  "torch @ ${task_torch_wheel}" -r requirements-current-lock.txt 'setuptools==79.0.1'
+  "torch @ ${task_torch_wheel}" -r requirements.txt 'setuptools==79.0.1'
 PATH="${artifact_root}/.venv/bin:${PATH}" .venv/bin/python -m pip install --no-build-isolation ./CityFlow
 .venv/bin/python scripts/check_environment.py
 echo 'Environment ready: source .venv/bin/activate'

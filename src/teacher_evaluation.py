@@ -16,7 +16,7 @@ import torch
 
 
 # All imports resolve inside this standalone artifact.
-WORKSPACE = Path(__file__).resolve().parents[2]
+WORKSPACE = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(WORKSPACE / "src"))
 
 from LLM_SR_DISTILLATION_method_v2.feature_extractor import (  # noqa: E402
@@ -36,7 +36,7 @@ from utilities.utils import (  # noqa: E402
     set_thread,
 )
 
-from ood_env import OODTSCEnv  # noqa: E402
+from env.ood_env import OODTSCEnv  # noqa: E402
 
 
 

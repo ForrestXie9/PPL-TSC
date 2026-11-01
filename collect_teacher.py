@@ -12,7 +12,6 @@ import sys
 
 ROOT=Path(__file__).resolve().parent
 sys.path.insert(0,str(ROOT/'src'))
-sys.path.insert(0,str(ROOT/'benchmarks/OOD_Robustness'))
 for key in ('OMP_NUM_THREADS','OPENBLAS_NUM_THREADS','MKL_NUM_THREADS','NUMEXPR_NUM_THREADS'):os.environ[key]='1'
 
 
@@ -49,10 +48,10 @@ def main():
         parser.error("Output must not overwrite the teacher checkpoint")
     if args.output.exists():parser.error('Trajectory output already exists; use a new path')
     provenance=validate_checkpoint_audit(args.checkpoint,audit_path,args.teacher,ROOT/'data'/args.scenario/'roadnet.json',args.allow_unaudited_checkpoint)
-    import evaluation
+    import teacher_evaluation as evaluation
     import torch
     from LLM_SR_DISTILLATION.simulator import StudentSimulator
-    from ood_env import OODTSCEnv
+    from env.ood_env import OODTSCEnv
     seed=args.seed if args.seed is not None else [992832,284765,905873,776383,198876][args.flow]
     horizon={'Atlanta':900,'LosAngeles':1800}.get(args.scenario,3600)
     config=evaluation.build_config(ROOT/'configs/traffic.json',args.teacher,args.scenario,args.flow,seed,horizon,ROOT/'data'/args.scenario)

@@ -1,8 +1,0 @@
-{
-  "issue": "if not feature_stats could erase frozen statistics provenance after a fallback branch, hiding absent nested keys",
-  "fix": "Resolve None comparisons, dictionary truth and compound Boolean conditions only when frozen inputs prove their outcome; preserve both paths for unknown conditions",
-  "regression_tests": "None-only, empty, combined guards, local aliases, unknown conditions, valid nested statistics and raw-feature namespace",
-  "scope": "Common static access patterns, not a full Python proof",
-  "integration_validation": "Passed independent full audit: 87 unit tests, 157 checks, zero unexpected failures; see COMPREHENSIVE_REVIEW_VALIDATION.json",
-  "API_calls": 0
-}
