@@ -8,93 +8,68 @@ from typing import List, Dict, Any, Optional, Tuple
 class TeacherDataLoader:
     """Load and manage teacher trajectories."""
 
-    def __init__(self, json_file_path: str):
+    def __init__(self, json_file_path: str, *, verbose: bool = True):
         """Initialize the loader from a teacher trajectory JSON file."""
         self.json_file_path = json_file_path
+        self.verbose = verbose
         self.timesteps = []
         self.intersection_ids = set()
         self.meta = {}
         self.config = {}
         self.stats = {}
+        self.schema = {}
         self._load_data()
 
     def _load_data(self):
-        """Load JSON or JSONL teacher data."""
+        """Load complete JSON or JSONL data without discarding malformed records."""
         try:
-            # JSONL is streamed directly. The legacy loader first attempted
-            # json.load(), which read a large JSONL file twice.
             if self.json_file_path.lower().endswith((".jsonl", ".jsonl.gz")):
                 self._load_jsonl()
-                self._finish_index()
-                return
-
-            # First try to load as a single JSON object
-            try:
-                with self._open_text() as f:
-                    data = json.load(f)
-            except json.JSONDecodeError:
-                # Fallback: treat as JSONL (one JSON object per line)
-                self.meta = {}
-                self.config = {}
-                self.stats = {}
-                self.timesteps = []
-                with self._open_text() as f:
-                    for line in f:
-                        line = line.strip()
-                        if not line:
-                            continue
-                        try:
-                            record = json.loads(line)
-                        except json.JSONDecodeError:
-                            continue
-                        # If this line looks like a timestep record, keep it.
-                        if 'intersection_id' in record and 'phases' in record:
-                            self.timesteps.append(record)
-                        # Optionally pick up meta/config/stats if present on any line.
-                        if isinstance(record, dict):
-                            if 'meta' in record and not self.meta:
-                                self.meta = record.get('meta') or {}
-                            if 'config' in record and not self.config:
-                                self.config = record.get('config') or {}
-                            if 'stats' in record and not self.stats:
-                                self.stats = record.get('stats') or {}
             else:
-                # Save meta/config/stats if present
-                self.meta = data.get('meta', {}) or {}
-                self.config = data.get('config', {}) or {}
-                self.stats = data.get('stats', {}) or {}
-
-
-                if 'data' in data and 'timesteps' in data['data']:
-                    self.timesteps = data['data']['timesteps']
-                elif 'timesteps' in data:
-                    self.timesteps = data['timesteps']
+                try:
+                    with self._open_text() as stream:
+                        data = json.load(stream)
+                except json.JSONDecodeError:
+                    # Legacy rollouts sometimes use .json for JSONL content.
+                    # Apply exactly the same strict parser as for .jsonl.
+                    self._load_jsonl()
                 else:
-                    # Fallback for JSONL records with unstructured metadata.
-                    self.timesteps = []
-                    with self._open_text() as f:
-                        for line in f:
-                            line = strip_line = line.strip()
-                            if not strip_line:
-                                continue
-                            try:
-                                record = json.loads(strip_line)
-                            except json.JSONDecodeError:
-                                continue
-                            if 'intersection_id' in record and 'phases' in record:
-                                self.timesteps.append(record)
-
+                    self._read_header(data, 'JSON root')
+                    container = data.get('data', data)
+                    if not isinstance(container, dict):
+                        raise ValueError('JSON data must be an object')
+                    if 'timesteps' in container:
+                        if not isinstance(container['timesteps'], list):
+                            raise ValueError('JSON timesteps must be a list')
+                        for index, row in enumerate(container['timesteps']):
+                            self._read_timestep(row, f'JSON timestep {index}')
+                    elif 'intersection_id' in data or 'phases' in data:
+                        self._read_timestep(data, 'JSON root')
             self._finish_index()
+        except (OSError, ValueError, TypeError, KeyError) as exc:
+            raise ValueError(f"Failed to load data: {exc}") from exc
 
-        except Exception as e:
-            raise ValueError(f"Failed to load data: {e}")
+    def _read_header(self, record, location):
+        if not isinstance(record, dict):
+            raise ValueError(f'{location}: expected a JSON object')
+        for field in ('meta', 'config', 'stats', 'schema'):
+            if field not in record:
+                continue
+            value = record[field] if record[field] is not None else {}
+            if not isinstance(value, dict):
+                raise ValueError(f'{location}: {field} must be an object')
+            existing = getattr(self, field)
+            if existing and existing != value:
+                raise ValueError(f'{location}: conflicting {field} records')
+            setattr(self, field, value)
+
+    def _read_timestep(self, row, location):
+        if not isinstance(row, dict) or 'intersection_id' not in row or not isinstance(row.get('phases'), list):
+            raise ValueError(f'{location}: expected an intersection_id and phases list')
+        self.timesteps.append(row)
 
     def _load_jsonl(self) -> None:
         """Stream a plain or gzip-compressed JSONL rollout exactly once."""
-        self.meta = {}
-        self.config = {}
-        self.stats = {}
-        self.timesteps = []
         with self._open_text() as f:
             for line_number, line in enumerate(f, start=1):
                 stripped = line.strip()
@@ -106,16 +81,12 @@ class TeacherDataLoader:
                     raise ValueError(
                         f"Invalid JSONL record at line {line_number}: {exc}"
                     ) from exc
-                if not isinstance(record, dict):
-                    continue
-                if "intersection_id" in record and "phases" in record:
-                    self.timesteps.append(record)
-                if "meta" in record and not self.meta:
-                    self.meta = record.get("meta") or {}
-                if "config" in record and not self.config:
-                    self.config = record.get("config") or {}
-                if "stats" in record and not self.stats:
-                    self.stats = record.get("stats") or {}
+                location = f'JSONL line {line_number}'
+                self._read_header(record, location)
+                if 'intersection_id' in record or 'phases' in record:
+                    self._read_timestep(record, location)
+                elif not any(field in record for field in ('meta', 'config', 'stats', 'schema')):
+                    raise ValueError(f'{location}: expected a trajectory header or timestep')
 
     def _open_text(self):
         if self.json_file_path.lower().endswith(".gz"):
@@ -128,11 +99,12 @@ class TeacherDataLoader:
             for timestep in self.timesteps
             if "intersection_id" in timestep
         }
-        print(f"Successfully loaded {len(self.timesteps)} timesteps")
-        print(
-            f"Contains {len(self.intersection_ids)} intersections: "
-            f"{sorted(self.intersection_ids)}"
-        )
+        if self.verbose:
+            print(f"Successfully loaded {len(self.timesteps)} timesteps")
+            print(
+                f"Contains {len(self.intersection_ids)} intersections: "
+                f"{sorted(self.intersection_ids)}"
+            )
 
     def get_meta(self) -> Dict[str, Any]:
         """Return meta section from the teacher data file."""
@@ -141,6 +113,10 @@ class TeacherDataLoader:
     def get_collector_config(self) -> Dict[str, Any]:
         """Return config section from the teacher data file."""
         return dict(self.config) if isinstance(self.config, dict) else {}
+
+    def get_header(self) -> Dict[str, Any]:
+        """Use the same parsed metadata for preparation and format conversion."""
+        return {field: dict(getattr(self, field)) for field in ('meta', 'config', 'stats', 'schema')}
 
     def get_timesteps(
         self,

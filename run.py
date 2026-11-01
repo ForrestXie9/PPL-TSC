@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import argparse
 from contextlib import contextmanager
-import gzip
+from functools import lru_cache
 import hashlib
 import importlib.metadata
 import json
@@ -213,18 +213,26 @@ def _teacher_rollout_entries(
     return "sequential", entries
 
 
+@lru_cache(maxsize=32)
+def _rollout_preview_cached(path: str, content_sha256: str) -> tuple[dict, dict | None]:
+    """Keep only a header/sample; release the full trajectory after parsing."""
+    from LLM_SR_DISTILLATION.data_loader import TeacherDataLoader
+    loader = TeacherDataLoader(path, verbose=False)
+    return loader.get_header(), loader.timesteps[0] if loader.timesteps else None
+
+
+def _rollout_preview(path: Path) -> tuple[dict, dict | None]:
+    # Use content hashes: filesystem timestamps can miss rapid same-size writes.
+    # Retain only a bounded header/sample cache, not complete trajectories.
+    path = path.resolve()
+    return _rollout_preview_cached(str(path), _sha256_file(path))
+
+
 def _read_rollout_meta(path: Path) -> dict[str, Any]:
-    opener = gzip.open if path.name.endswith(".gz") else open
-    with opener(path, "rt", encoding="utf-8") as f:
-        first_line = f.readline()
-    try:
-        header = json.loads(first_line)
-    except json.JSONDecodeError as exc:
-        raise ValueError(f"Invalid first JSONL record in teacher rollout: {path}") from exc
-    meta = header.get("meta") if isinstance(header, dict) else None
-    if not isinstance(meta, dict):
-        raise ValueError(f"Teacher rollout has no meta object in its first record: {path}")
-    return meta
+    header, _ = _rollout_preview(path)
+    if not header['meta']:
+        raise ValueError(f"Teacher rollout has no meta object: {path}")
+    return dict(header['meta'])
 
 
 def _validate_rollout_entry(
@@ -272,10 +280,7 @@ def _validate_ecolight_action_interface(path: Path, action_mode: str) -> None:
         action_mode = "keep_switch"
     if action_mode not in {"keep_switch", "binary_keep_switch", "phase_argmax"}:
         raise ValueError(f"Unsupported EcoLight action mode {action_mode!r}")
-    opener = gzip.open if path.name.endswith(".gz") else open
-    with opener(path, "rt", encoding="utf-8") as stream:
-        header = json.loads(stream.readline())
-        sample = json.loads(stream.readline())
+    header, sample = _rollout_preview(path)
     if not isinstance(sample, dict) or not sample.get("phases"):
         raise ValueError(f"EcoLight rollout has no phase observations: {path}")
     state = sample["phases"][0].get("state", {})
@@ -610,16 +615,12 @@ def _build_internal_argv(
     validate_current_profile(config)
     if config.get("method",{}).get("profile")=="full_100_256_v1":
         for rollout_path in teacher_data_paths:
-            opener=gzip.open if rollout_path.name.endswith(".gz") else open
-            with opener(rollout_path,"rt",encoding="utf-8") as stream:
-                source_header=json.loads(stream.readline())
+            source_header, _ = _rollout_preview(rollout_path)
             if source_header.get("meta",{}).get("direction_feature_semantics")!="compatible_shared_lane_mean_v1":
                 raise ValueError("Current full method requires matching compatible-shared-lane source observations")
     environment_semantics = json.loads(traffic_config.read_text()).get("waiting_time_semantics", "per_decision")
     for rollout_path in teacher_data_paths:
-        opener = gzip.open if rollout_path.name.endswith(".gz") else open
-        with opener(rollout_path, "rt", encoding="utf-8") as stream:
-            header = json.loads(stream.readline())
+        header, _ = _rollout_preview(rollout_path)
         meta = header.get("meta", {})
         if meta.get("model") == "TinyLight" and meta.get("environment_semantics", "legacy_per_read") != environment_semantics:
             raise ValueError("TinyLight trajectory feature semantics differ from the environment. "
@@ -632,9 +633,7 @@ def _build_internal_argv(
         if int(simulation_steps) <= 0:
             raise ValueError("evaluation.simulation_steps must be positive")
         for rollout_path in teacher_data_paths:
-            opener = gzip.open if rollout_path.name.endswith(".gz") else open
-            with opener(rollout_path, "rt", encoding="utf-8") as stream:
-                header = json.loads(stream.readline())
+            header, _ = _rollout_preview(rollout_path)
             teacher_steps = header.get("config", {}).get("num_step")
             if teacher_steps is None or int(teacher_steps) != int(simulation_steps):
                 horizon_matched = False
