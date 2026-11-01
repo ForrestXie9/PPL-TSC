@@ -31,7 +31,15 @@ Add `--dry-run` to `run.py` to check a configuration without calling the API.
 Teachers: **CoLight, FRAP, MPLight, TinyLight, EcoLight**.
 Student variants: `CoLight`, `FRAP`, `MPLight`, `TinyLight`, `EcoLight-native`,
 `EcoLight-naive`, `EcoLight-phase-selection`. Use the matching `--teacher` and `--variant`.
-All three EcoLight variants use the EcoLight teacher.
+All three EcoLight variants use the same EcoLight teacher; their student interfaces differ:
+
+| Student variant | Utility inputs | Decision |
+|---|---|---|
+| `EcoLight-native` | Exact green/red lane vehicle totals at the intersection | Score KEEP and SWITCH on the same state |
+| `EcoLight-naive` | Directional vehicle features for each candidate phase | Compare the current phase with its cyclic successor |
+| `EcoLight-phase-selection` | Directional vehicle features for each candidate phase | Select the highest-scoring phase from all phases |
+
+Both KEEP/SWITCH variants advance only to the cyclic next phase. Report the three variants separately.
 
 Default search: population 5, generations 5; CMA-ES population 20, maximum 20 iterations.
 Configuration templates are in `configs/examples/`.
