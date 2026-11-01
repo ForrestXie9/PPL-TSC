@@ -187,39 +187,30 @@ def llm_api_key_missing_message() -> str:
     backend = (os.getenv("LLM_BACKEND") or "").strip().lower()
     if backend in ("comp", "comp_openai", "azure_apim", "azure"):
         return (
-            "LLM API key 未配置。请任选其一：环境变量 LLM_API_KEY；命令行 --llm_api_key；"
-            "或在 LLM_SR_DISTILLATION_method_v2/comp_llm_embedded.py 填写 COMP_API_KEY。"
+            "LLM API key missing. Set LLM_API_KEY, pass --llm_api_key, "
+            "or configure COMP_API_KEY in LLM_SR_DISTILLATION_method_v2/comp_llm_embedded.py."
         )
     if backend in ("jiekou", "jiekou_ai"):
         return (
-            "LLM API key 未配置。请任选其一：环境变量 LLM_API_KEY；命令行 --llm_api_key；"
-            "或在 LLM_SR_DISTILLATION_method_v2/jiekou_llm_embedded.py 填写 JIEKOU_API_KEY。"
+            "LLM API key missing. Set LLM_API_KEY, pass --llm_api_key, "
+            "or configure JIEKOU_API_KEY in LLM_SR_DISTILLATION_method_v2/jiekou_llm_embedded.py."
         )
     if backend in ("yunwu", "yunwu_ai"):
         return (
-            "LLM API key 未配置。请任选其一：环境变量 LLM_API_KEY；命令行 --llm_api_key；"
-            "或在 LLM_SR_DISTILLATION_method_v2/yunwu_llm_embedded.py 填写 YUNWU_API_KEY。"
+            "LLM API key missing. Set LLM_API_KEY, pass --llm_api_key, "
+            "or configure YUNWU_API_KEY in LLM_SR_DISTILLATION_method_v2/yunwu_llm_embedded.py."
         )
     return (
-        "LLM API key 未配置。请任选其一：环境变量 LLM_API_KEY；命令行 --llm_api_key；"
-        "或在 LLM_SR_DISTILLATION_method_v2/general_llm_embedded.py 填写 GENERAL_API_KEY。"
+        "LLM API key missing. Set LLM_API_KEY, pass --llm_api_key, "
+        "or configure GENERAL_API_KEY in LLM_SR_DISTILLATION_method_v2/general_llm_embedded.py."
     )
 
 
 def apply_llm_backend_cli_choice(cli_choice: Optional[str]) -> None:
-    """
-    Map --llm_backend 1|2|3|4 into process env so ``run_llm`` / ``resolve_llm_connection_settings`` see it.
+    """Map --llm_backend 1|2|3|4 into the process environment.
 
-    - ``1``: general OpenAI-compatible (drops LLM_BACKEND). Optionally loads
-      ``general_llm_embedded`` defaults into ``LLM_REQUEST_PATH`` / ``LLM_AUTH_MODE`` / ``LLM_TEMPERATURE``
-      via ``setdefault`` when those env vars are unset.
-    - ``2``: COMP (sets LLM_BACKEND=comp).
-    - ``3``: Jiekou.AI OpenAI-compatible (sets LLM_BACKEND=jiekou; same ``run_llm`` path as ``1``,
-      default host ``api.jiekou.ai`` and path ``/openai/v1/chat/completions`` from ``jiekou_llm_embedded``).
-    - ``4``: Yunwu OpenAI-compatible (sets LLM_BACKEND=yunwu; default host ``yunwu.ai`` and
-      path ``/v1/chat/completions`` from ``yunwu_llm_embedded``).
-    Default CLI value is ``1``：不写命令行时也为第一种，shell 里的 LLM_BACKEND 会被清除。
-    """
+    The default is 1, including when omitted; this clears a stale LLM_BACKEND.
+    run_llm and resolve_llm_connection_settings use the resulting selection."""
     if cli_choice is None:
         return
     c = str(cli_choice).strip()
@@ -416,7 +407,7 @@ def get_dumpable_config(config: dict):
     return dumpable_config
 
 
-def list_with_unique_element(original_list):  # list去重
+def list_with_unique_element(original_list):  # Preserve order while removing duplicates.
     new_list = []
     for elem in original_list:
         if elem not in new_list:

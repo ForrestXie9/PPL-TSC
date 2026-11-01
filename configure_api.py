@@ -183,11 +183,11 @@ def _prompt(label: str, default: str) -> str:
 
 def _choose_provider(default: str) -> str:
     choices = ("yunwu", "openai_compatible", "local")
-    print("接口类型:")
+    print("API backend:")
     for index, name in enumerate(choices, start=1):
         marker = " (default)" if name == default else ""
         print(f"  {index}. {name}{marker}")
-    value = input("请选择编号或名称: ").strip()
+    value = input("Select a number or name: ").strip()
     if not value:
         return default
     if value.isdigit() and 1 <= int(value) <= len(choices):
@@ -201,11 +201,11 @@ def _choose_model(models: list[str], default: str) -> str:
     ordered = [name for name in PREFERRED_MODELS if name in models]
     ordered.extend(name for name in models if name not in ordered)
     shown = ordered[:30]
-    print(f"接口返回 {len(models)} 个模型，显示前 {len(shown)} 个:")
+    print(f"The API returned {len(models)} models; showing the first {len(shown)}:")
     for index, name in enumerate(shown, start=1):
         marker = " (recommended)" if name == default else ""
         print(f"  {index:2d}. {name}{marker}")
-    value = input(f"模型编号或完整名称 [{default}]: ").strip()
+    value = input(f"Model number or full name [{default}]: ").strip()
     if not value:
         return default
     if value.isdigit() and 1 <= int(value) <= len(shown):
@@ -270,12 +270,12 @@ def main() -> int:
     endpoint = args.endpoint or (
         str(defaults["endpoint"])
         if args.non_interactive
-        else _prompt("API 地址（主机名即可）", str(defaults["endpoint"]))
+        else _prompt("API hostname", str(defaults["endpoint"]))
     )
     request_path = args.request_path or (
         str(defaults["request_path"])
         if args.non_interactive
-        else _prompt("Chat 请求路径", str(defaults["request_path"]))
+        else _prompt("Chat request path", str(defaults["request_path"]))
     )
     auth_mode = args.auth_mode or str(defaults.get("auth_mode", "bearer"))
 
@@ -283,7 +283,7 @@ def main() -> int:
     if provider == "local" and not api_key:
         api_key = "EMPTY"
     elif not api_key and not args.non_interactive:
-        api_key = getpass("API Key（输入时不会显示）: ").strip()
+        api_key = getpass("API key (input hidden): ").strip()
     if not api_key:
         raise ValueError(
             "No API key found. Set LLM_API_KEY or run interactively to enter one."
@@ -305,14 +305,14 @@ def main() -> int:
         except Exception as exc:
             if args.non_interactive:
                 raise
-            print(f"模型列表获取失败，将手动填写模型：{exc}")
-            model = _prompt("模型名称", model)
+            print(f"Could not fetch models; enter the model manually: {exc}")
+            model = _prompt("Model name", model)
     elif not args.non_interactive and not args.model:
-        model = _prompt("模型名称", model)
+        model = _prompt("Model name", model)
 
     if not args.no_test:
         reply = test_chat(endpoint, request_path, model, api_key, auth_mode)
-        print(f"API 测试成功，模型回复：{reply[:80]}")
+        print(f"API test succeeded; model reply: {reply[:80]}")
 
     profile = {
         "provider": provider,
@@ -324,9 +324,9 @@ def main() -> int:
         "auth_mode": auth_mode,
     }
     _save(api_key, profile)
-    print(f"密钥已安全保存到：{ENV_PATH}")
-    print(f"模型配置已保存到：{PROFILE_PATH}")
-    print("之后直接运行 python run.py ...，无需再执行 source .env。")
+    print(f"API key saved locally to: {ENV_PATH}")
+    print(f"Model settings saved to: {PROFILE_PATH}")
+    print("Run python run.py ... directly; sourcing .env is not required.")
     return 0
 
 

@@ -1,7 +1,4 @@
-"""
-LLM符号回归蒸馏模块
-用于从teacher模型蒸馏出符号化的效用函数
-"""
+"""Evolutionary LLM-based distillation of symbolic utility functions."""
 
 __version__ = "1.0.0"
 

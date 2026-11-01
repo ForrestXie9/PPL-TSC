@@ -8,11 +8,7 @@ from env.TSC_env import TSCEnv
 
 
 class AdvancedCoLight(BaseDRL):
-    """
-    PyTorch 版 Advanced-CoLight。
-    在原 CoLight 结构基础上增大 embedding / attention / representation 维度与头数，
-    提高网络容量，同时保持与现有环境 / replay_buffer 完全兼容。
-    """
+    """Optional wider PyTorch CoLight variant compatible with the environment and replay buffer."""
 
     def __init__(self, config, env, idx):
         super(AdvancedCoLight, self).__init__(config, env, idx)
@@ -94,9 +90,7 @@ class AdvancedCoLight(BaseDRL):
 
 
 class _AdvancedCoLightNetwork(torch.nn.Module):
-    """
-    加宽版 CoLight 网络：增大 embedding / attention head / representation 以及 head 数量。
-    """
+    """CoLight network with wider embeddings, attention heads and representations."""
 
     def __init__(self, num_lane, num_phase, env: TSCEnv, idx, n_neighbor_idx, is_target_network, max_num_phase=None):
         super(_AdvancedCoLightNetwork, self).__init__()
@@ -108,7 +102,7 @@ class _AdvancedCoLightNetwork(torch.nn.Module):
         self.is_target_network = is_target_network
         self.max_num_phase = max_num_phase if max_num_phase is not None else num_phase
 
-        # 相比原 CoLight：通道数翻倍、head 数增加；Advanced 版输入为 phase + num_vehicle + delay，共 3 路
+        # Wider channels and more heads; inputs are phase, vehicle count and delay.
         self.dim_embedding = 64
         self.dim_attention_head = 64
         self.dim_representation = 64

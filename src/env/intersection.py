@@ -17,20 +17,20 @@ class Intersection:
         self.yellow_phase = -1
         self._yellow_time = 3
 
-        self.n_road = []  # type: List[Road]       # 一般有8条路
-        self.n_in_road = []  # type: List[Road]    # 一般有4条路
-        self.n_out_road = []  # type: List[Road]   # 一般有4条路
-        self.n_lane_id = []  # type: List[str]     # 8*3 或者 8*2个车道的名字
-        self.n_in_lane_id = []  # type: List[str]  # 4*3 或者 4*2个车道的名字
-        self.n_out_lane_id = []  # type: List[str] # 4*3 或者 4*2个车道的名字
+        self.n_road = []  # type: List[Road]
+        self.n_in_road = []  # type: List[Road]
+        self.n_out_road = []  # type: List[Road]
+        self.n_lane_id = []  # type: List[str]
+        self.n_in_lane_id = []  # type: List[str]
+        self.n_out_lane_id = []  # type: List[str]
 
         # scan all road
-        for road_id in self.inter_dict['roads']:  # 一般有8条路
+        for road_id in self.inter_dict['roads']:
             road = self.env.id2road[road_id]
             self.n_road.append(road)
 
         # scan all roadlink
-        self.n_roadlink = []  # type: List[RoadLink]  # 一般有12个roadLink 车道1到车道2, 车道1到车道1
+        self.n_roadlink = []  # type: List[RoadLink]
         self.n_num_lanelink = []  # type: List[int]
         for roadlink_dict in self.inter_dict['roadLinks']:
             roadlink = RoadLink(roadlink_dict, self)
@@ -91,7 +91,7 @@ class Intersection:
             if self.current_phase_time < self._yellow_time:
                 self.current_phase_time += interval
             else:
-                self.eng.set_tl_phase(self.inter_id, self.n_phase[action].phase_idx)  # 等待时间达到了3秒
+                self.eng.set_tl_phase(self.inter_id, self.n_phase[action].phase_idx)  # Apply the selected phase after the clearance interval.
                 self.current_phase = action
                 self.current_phase_time = interval
         elif action == self.current_phase:

@@ -1,7 +1,4 @@
-"""
-数据加载模块
-加载teacher模型收集的phase-level数据
-"""
+"""Load phase-level observations collected from a teacher policy."""
 import gzip
 import json
 import numpy as np
@@ -9,15 +6,10 @@ from typing import List, Dict, Any, Optional, Tuple
 
 
 class TeacherDataLoader:
-    """加载和管理teacher模型数据"""
-    
+    """Load and manage teacher trajectories."""
+
     def __init__(self, json_file_path: str):
-        """
-        初始化数据加载器
-        
-        Args:
-            json_file_path: teacher数据JSON文件路径
-        """
+        """Initialize the loader from a teacher trajectory JSON file."""
         self.json_file_path = json_file_path
         self.timesteps = []
         self.intersection_ids = set()
@@ -25,9 +17,9 @@ class TeacherDataLoader:
         self.config = {}
         self.stats = {}
         self._load_data()
-    
+
     def _load_data(self):
-        """从JSON文件加载数据"""
+        """Load JSON or JSONL teacher data."""
         try:
             # JSONL is streamed directly. The legacy loader first attempted
             # json.load(), which read a large JSONL file twice.
@@ -71,14 +63,14 @@ class TeacherDataLoader:
                 self.meta = data.get('meta', {}) or {}
                 self.config = data.get('config', {}) or {}
                 self.stats = data.get('stats', {}) or {}
-                
-                # 尝试从标准格式加载
+
+
                 if 'data' in data and 'timesteps' in data['data']:
                     self.timesteps = data['data']['timesteps']
                 elif 'timesteps' in data:
                     self.timesteps = data['timesteps']
                 else:
-                    # 尝试JSONL格式（data 是一些非结构化字段）
+                    # Fallback for JSONL records with unstructured metadata.
                     self.timesteps = []
                     with self._open_text() as f:
                         for line in f:
@@ -91,9 +83,9 @@ class TeacherDataLoader:
                                 continue
                             if 'intersection_id' in record and 'phases' in record:
                                 self.timesteps.append(record)
-            
+
             self._finish_index()
-            
+
         except Exception as e:
             raise ValueError(f"Failed to load data: {e}")
 
@@ -149,52 +141,32 @@ class TeacherDataLoader:
     def get_collector_config(self) -> Dict[str, Any]:
         """Return config section from the teacher data file."""
         return dict(self.config) if isinstance(self.config, dict) else {}
-    
+
     def get_timesteps(
-        self, 
+        self,
         intersection_id: Optional[int] = None,
         max_timesteps: Optional[int] = None
     ) -> List[Dict[str, Any]]:
-        """
-        获取时间步数据
-        
-        Args:
-            intersection_id: 如果指定，只返回该路口的数据
-            max_timesteps: 最大返回时间步数（用于快速测试）
-        
-        Returns:
-            时间步数据列表
-        """
+        """Return timesteps, optionally restricted to one intersection and a maximum count."""
         timesteps = self.timesteps
-        
+
         if intersection_id is not None:
             timesteps = [t for t in timesteps if t.get('intersection_id') == intersection_id]
-        
+
         if max_timesteps is not None:
             timesteps = timesteps[:max_timesteps]
-        
+
         return timesteps
-    
+
     def get_phase_data(
         self,
         intersection_id: Optional[int] = None,
         max_timesteps: Optional[int] = None
     ) -> List[Tuple[Dict[str, Any], Dict[str, Any]]]:
-        """
-        获取phase-level数据对 (state, teacher_info)
-        
-        Args:
-            intersection_id: 如果指定，只返回该路口的数据
-            max_timesteps: 最大返回时间步数
-        
-        Returns:
-            [(state, teacher_info), ...] 列表
-            state: phase的state特征
-            teacher_info: {Q_value, logit, selected, phase_id}
-        """
+        """Return phase-level (state, teacher_info) pairs for the selected observations."""
         timesteps = self.get_timesteps(intersection_id, max_timesteps)
         phase_data = []
-        
+
         for timestep in timesteps:
             phases = timestep.get('phases', [])
             for phase in phases:
@@ -208,9 +180,9 @@ class TeacherDataLoader:
                     'timestep': timestep.get('timestep')
                 }
                 phase_data.append((state, teacher_info))
-        
+
         return phase_data
-    
+
     def get_action_consistency_data(
         self,
         intersection_id: Optional[int] = None,
@@ -218,51 +190,41 @@ class TeacherDataLoader:
         include_teacher_q_values: bool = True,
         include_timestep: bool = False
     ) -> List[Tuple[Dict[str, Any], int, Optional[List[float]]]]:
-        """
-        获取用于计算动作一致率的数据
-        
-        Args:
-            intersection_id: 如果指定，只返回该路口的数据
-            max_timesteps: 最大返回时间步数
-            include_teacher_q_values: 是否包含教师的Q值用于软目标蒸馏（默认True）
-        
-        Returns:
-            [(state_dict, teacher_action, teacher_q_values), ...] 列表
-            state_dict: 包含所有phase的state的字典 {phase_id: state}
-            teacher_action: teacher选择的phase_id
-            teacher_q_values: 教师对每个phase的Q值 (按phase_id排序)，若不存在则为None
-        """
+        """Return (state_dict, teacher_action, teacher_q_values) for fidelity evaluation.
+
+        Q-values, when available, follow sorted physical phase IDs; otherwise None
+        is returned. include_teacher_q_values controls optional soft targets."""
         timesteps = self.get_timesteps(intersection_id, max_timesteps)
         action_data = []
-        
+
         for timestep in timesteps:
             phases = timestep.get('phases', [])
             if not phases:
                 continue
-            
-            # 构建state字典和Q值字典（按phase_id索引）
+
+            # Index source phase states and Q-values by physical phase ID.
             state_dict = {}
             teacher_action = None
             teacher_q_dict = {}  # {phase_id: Q_value}
             teacher_binary_q_values = timestep.get(
                 "teacher_binary_q_values"
             )
-            
+
             for phase in phases:
                 phase_id = phase.get('phase_id')
                 state = phase.get('state', {})
                 state_dict[phase_id] = state
-                
-                # 收集教师的Q值（用于软目标蒸馏）
+
+
                 if include_teacher_q_values:
                     q_value = phase.get('Q_value')
                     teacher_q_dict[phase_id] = q_value if q_value is not None else 0.0
-                
+
                 if phase.get('selected', False):
                     teacher_action = phase_id
-            
+
             if teacher_action is not None:
-                # 按phase_id排序后转为列表（与evaluator中sorted(state_dict.keys())顺序一致）
+                # Match the sorted physical phase order used by the evaluator.
                 if (
                     include_teacher_q_values
                     and isinstance(teacher_binary_q_values, list)
@@ -277,18 +239,18 @@ class TeacherDataLoader:
                     teacher_q_values_list = [teacher_q_dict[pid] for pid in sorted_phase_ids]
                 else:
                     teacher_q_values_list = None
-                
+
                 # Debug: Check if teacher_q_values is None when it shouldn't be
                 if include_teacher_q_values and teacher_q_values_list is None:
                     timestep_id = timestep.get('timestep', 'unknown')
                     print(f"      DEBUG: teacher_q_values_list is None for timestep {timestep_id}, "
                           f"teacher_q_dict={teacher_q_dict}, state_dict keys={list(state_dict.keys())}")
-                
+
                 if include_timestep:
                     action_data.append((state_dict, teacher_action, teacher_q_values_list, timestep.get('timestep')))
                 else:
                     action_data.append((state_dict, teacher_action, teacher_q_values_list))
-        
+
         return action_data
 
     def compute_binary_feature_stats(
@@ -328,44 +290,36 @@ class TeacherDataLoader:
             }
         from stats_extension import extend
         return extend(stats, values)
-    
+
     def get_teacher_metrics(
         self,
         intersection_id: Optional[int] = None
     ) -> Dict[str, float]:
-        """
-        获取teacher模型的性能指标（从数据中提取）
-        
-        Args:
-            intersection_id: 如果指定，只返回该路口的数据
-        
-        Returns:
-            包含性能指标的字典
-        """
+        """Extract teacher performance metrics from trajectory statistics or timestep records."""
         metrics = {
             'average_delay': None,
             'average_travel_time': None,
             'average_queue_length': None,
             'average_throughput': None
         }
-        
-        # 首先尝试从stats中提取（这是主要来源）
+
+        # Prefer recorded trajectory statistics.
         if hasattr(self, 'stats') and self.stats:
-            # 映射stats中的字段名
+
             stats_mapping = {
                 'average_delay': ['avg_delay', 'average_delay', 'avg_AD'],
                 'average_travel_time': ['avg_travel_time', 'average_travel_time', 'avg_ATT'],
                 'average_queue_length': ['avg_queue_length', 'average_queue_length', 'avg_AQL'],
                 'average_throughput': ['avg_throughput', 'average_throughput']
             }
-            
+
             for key, possible_names in stats_mapping.items():
                 for name in possible_names:
                     if name in self.stats and metrics[key] is None:
                         metrics[key] = float(self.stats[name])
                         break
-        
-        # 如果stats中没有，尝试从timestep中提取（备用方法）
+
+        # Fallback to per-timestep metrics when statistics are absent.
         if metrics['average_delay'] is None:
             timesteps = self.get_timesteps(intersection_id)
             for timestep in timesteps:
@@ -374,23 +328,23 @@ class TeacherDataLoader:
                     for key in metrics:
                         if key in metrics_data and metrics[key] is None:
                             metrics[key] = float(metrics_data[key])
-        
+
         return metrics
 
     def compute_feature_stats(self, observation_features: List[str]) -> Dict[str, Dict[str, float]]:
         """
         Compute min, max, mean, std for normalization from teacher data.
-        
+
         Args:
             observation_features: List of observation feature names
-        
+
         Returns:
             Dictionary {feature_name: {'min', 'max', 'mean', 'std'}}
             - min/max: for Min-Max normalization using source values
             - mean/std: for Z-score normalization (more robust to outliers)
         """
         feature_stats = {}
-        
+
         # Map observation feature names to aggregation kinds
         feature_kinds_map = {
             'pressure': 'pressure_sum',
@@ -398,18 +352,18 @@ class TeacherDataLoader:
             'num_waiting_vehicle': 'num_waiting_vehicle_sum',
             'waiting_time': 'waiting_time_sum',
         }
-        
+
         # Collect all values for each feature kind
         # State can be at timestep level or inside phases[i].state (collect_teacher_data writes per-phase state)
         values_by_kind = {}
-        
+
         def collect_from_fbd(fbd):
             if not isinstance(fbd, dict):
                 return
             for direction_name, direction_features in fbd.items():
                 if not isinstance(direction_features, dict):
                     continue
-                
+
                 collected_kinds = set()
                 for obs_feat in observation_features or []:
                     obs_feat_lower = (obs_feat or "").lower()
@@ -457,7 +411,7 @@ class TeacherDataLoader:
                         if kind not in values_by_kind:
                             values_by_kind[kind] = []
                         values_by_kind[kind].append(raw_value)
-        
+
         for timestep in self.timesteps:
             # Top-level (legacy)
             if 'features_by_direction' in timestep:
@@ -467,7 +421,7 @@ class TeacherDataLoader:
                 state = phase.get('state') or {}
                 if 'features_by_direction' in state:
                     collect_from_fbd(state.get('features_by_direction', {}))
-        
+
         # Compute min, max, mean, std for each feature kind
         # Return with kind names (will be remapped to actual feature names in main.py)
         for kind, values in values_by_kind.items():
@@ -484,12 +438,12 @@ class TeacherDataLoader:
                     'std': sigma,
                     'count': int(arr.size),
                 }
-        
+
         # current_phase/phase_active: binary 0 or 1 only; min/max/mean/std for compatibility
         feature_stats['current_phase'] = {'min': 0.0, 'max': 1.0, 'mean': 0.5, 'std': 0.5}
         from stats_extension import extend
         feature_stats = extend(feature_stats, values_by_kind)
-        
+
         return feature_stats
 
     def compute_phase_feature_stats(self, extractor) -> Dict[str, Dict[str, float]]:

@@ -23,7 +23,7 @@
     {
       "file": "agent/drl_based/colight.py",
       "upstream_sha256": "713f4fd266a75d8a14fc722e4b9778eabc69e12dc7ac18fc67412d7732eea861",
-      "runtime_sha256": "658d9a280deebd201243d8e7220e5409a9e1490083950f4183ea5c10057e5055",
+      "runtime_sha256": "1132e724d9e5df79e59f4289e97849b46afaa28745525176e600400569833a46",
       "identical": false
     },
     {
@@ -34,5 +34,6 @@
     }
   ],
   "transfer_protocol": "copy source agent 0 learned weights into target-local agent instances; strict named tensor and shape validation",
-  "training_protocol_note": "Original transfer script trains 64 episodes; release trainer defaults to corrected 128-episode best-training-ATT protocol; not an exact historical training replication."
+  "training_protocol_note": "Original transfer script trains 64 episodes; release trainer defaults to corrected 128-episode best-training-ATT protocol; not an exact historical training replication.",
+  "presentation_note": "Runtime comments and documentation are in English; reference files are unmodified. English publication edits preserve executable structure."
 }

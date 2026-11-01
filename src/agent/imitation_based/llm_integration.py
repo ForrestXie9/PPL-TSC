@@ -1,7 +1,4 @@
-"""
-LLM集成模块，用于调用大语言模型生成符号表达式
-支持多种LLM API接口
-"""
+"""LLM API adapters for symbolic expression generation."""
 import importlib
 import hashlib
 import json
@@ -82,10 +79,10 @@ def _validate_latin1_header_values(headers: dict) -> None:
             if name.lower() == "authorization" and preview.lower().startswith("bearer "):
                 preview = preview[:7] + "<api_key>"
             raise ValueError(
-                f"HTTP 请求头 {name!r} 含非 ASCII 字符，无法发送。"
-                f"常见原因：把文档占位符「你的密钥」原样写进了 LLM_API_KEY / --llm_api_key。"
-                f"请改为真实 API Key（仅含英文字母、数字、符号），或 unset LLM_API_KEY 以使用嵌入式密钥。"
-                f" 当前值预览: {preview!r}"
+                f"HTTP header {name!r} contains non-ASCII characters and cannot be sent. "
+                f"A placeholder may have been copied into LLM_API_KEY / --llm_api_key. "
+                f"Use an actual ASCII API key, or unset LLM_API_KEY to use an explicitly configured fallback. "
+                f" Value preview: {preview!r}"
             ) from exc
 
 
@@ -98,28 +95,25 @@ def _open_http_connection(api_endpoint: str, timeout: float = 300.0):
 
 
 class LLMInterface:
-    """LLM接口基类"""
-    
+    """Base interface for LLM calls."""
+
     def __init__(self, api_endpoint: str, api_key: str, model: str, debug_mode: bool = False):
         self.api_endpoint = api_endpoint
         self.api_key = api_key
         self.model = model
         self.debug_mode = debug_mode
-    
+
     def get_response(self, prompt: str) -> str:
-        """获取LLM响应"""
+        """Return an LLM response."""
         raise NotImplementedError
 
 
 class GeneralAPIInterface(LLMInterface):
-    """通用API接口（兼容OpenAI格式）
-    
-    鉴权方式由 auth_mode 控制：
-    - "bearer": Authorization: Bearer <api_key>（常见 OpenAI 兼容网关）
-    - "api_key": Api-Key: <api_key>（部分厂商使用独立头名）
-    extra_headers 会合并进最终请求头（可传 Accept 等）。
-    """
-    
+    """OpenAI-compatible API adapter.
+
+    auth_mode selects Bearer authorization or an Api-Key header.
+    extra_headers is merged into the final request headers."""
+
     def __init__(
         self,
         api_endpoint: str,
@@ -137,7 +131,7 @@ class GeneralAPIInterface(LLMInterface):
         self.extra_headers = dict(extra_headers) if extra_headers else {}
         self.request_path = request_path or "/v1/chat/completions"
         self.temperature = float(temperature)
-    
+
     def _build_headers(self) -> dict:
         headers = {
             "Content-Type": "application/json",
@@ -148,9 +142,9 @@ class GeneralAPIInterface(LLMInterface):
             headers["Authorization"] = f"Bearer {self.api_key}"
         headers.update(self.extra_headers)
         return headers
-    
+
     def get_response(self, prompt: str, max_retries: int = 3) -> str:
-        """调用通用API接口"""
+        """Call the OpenAI-compatible API endpoint."""
         payload = json.dumps(
             {
                 "model": self.model,
@@ -190,14 +184,14 @@ class GeneralAPIInterface(LLMInterface):
                     probe = text[:1200].lower()
                     if "<!doctype html" in probe or "<html" in probe:
                         raise RuntimeError(
-                            "HTTP 200 但返回网页 HTML（通常是柏拉图/OpenAI 中转商的门户页），不是 Chat API 的 JSON。"
-                            "说明 POST 未打到兼容接口。\n"
-                            "请按供应商控制台核对：\n"
-                            "  • LLM_API_ENDPOINT：应为文档里的 API 主机名（仅域名，不要 https://，不要网页前台域名）；\n"
-                            "  • LLM_REQUEST_PATH：一般为 /v1/chat/completions（若文档写明别的路径则按其填写）；\n"
-                            "  • LLM_AUTH_MODE：多为 bearer（Authorization: Bearer <key>）；\n"
-                            "  • 若走 COMP/Azure APIM，请设置 LLM_BACKEND=comp，并使用 comp.azure-api.net + 部署名。\n"
-                            f"当前请求：host={self.api_endpoint!r} POST path={self.request_path!r}"
+                            "HTTP 200 returned HTML instead of Chat API JSON. "
+                            "The POST request did not reach a compatible endpoint.\n"
+                            "Check the provider documentation:\n"
+                            "  - LLM_API_ENDPOINT: bare API hostname, without https:// or the console website domain;\n"
+                            "  - LLM_REQUEST_PATH: usually /v1/chat/completions; use the provider-documented path;\n"
+                            "  - LLM_AUTH_MODE: usually bearer (Authorization: Bearer <key>);\n"
+                            "  - For COMP/Azure APIM, use LLM_BACKEND=comp, comp.azure-api.net and a deployment name.\n"
+                            f"Current request: host={self.api_endpoint!r} POST path={self.request_path!r}"
                         ) from je
                     raise RuntimeError(
                         f"HTTP {status}: response is not JSON (first 500 chars): {text[:500]!r}"
@@ -211,7 +205,7 @@ class GeneralAPIInterface(LLMInterface):
                         f"HTTP {status} from {self.api_endpoint}: {err_msg or text[:800]!r}"
                     )
 
-                # 部分网关 HTTP 200 但 body 为 {"error": ...} 且无 choices
+                # Some gateways return an error object with HTTP 200 and no choices.
                 if "choices" not in json_data and json_data.get("error") is not None:
                     err_obj = json_data["error"]
                     if isinstance(err_obj, dict):
@@ -239,7 +233,7 @@ class GeneralAPIInterface(LLMInterface):
                 msg = choice0.get("message") or {}
                 content = msg.get("content")
                 if content is None:
-                    # 少数兼容：completion 风格
+                    # Support legacy completion-style responses.
                     content = choice0.get("text")
                 if content is None:
                     raise RuntimeError(
@@ -302,7 +296,7 @@ class GeneralAPIInterface(LLMInterface):
 
 
 def _parse_extra_headers_from_env() -> dict:
-    """从 LLM_EXTRA_HEADERS 读取 JSON，例如 {\"Accept\":\"application/json\"}"""
+    """Parse LLM_EXTRA_HEADERS as a JSON object with string header names."""
     raw = os.getenv("LLM_EXTRA_HEADERS", "").strip()
     if not raw:
         return {}
@@ -310,7 +304,7 @@ def _parse_extra_headers_from_env() -> dict:
         data = json.loads(raw)
         if not isinstance(data, dict):
             raise ValueError("LLM_EXTRA_HEADERS must be a JSON object")
-        # 强制 key 为 str
+
         return {str(k): str(v) for k, v in data.items()}
     except json.JSONDecodeError as e:
         raise ValueError(
@@ -369,7 +363,7 @@ def _write_cached_response(path: Optional[Path], response: str, metadata: dict) 
     tmp_path.replace(path)
 
 
-def run_llm(prompt: str, 
+def run_llm(prompt: str,
             api_endpoint: Optional[str] = None,
             api_key: Optional[str] = None,
             model: Optional[str] = None,
@@ -379,31 +373,13 @@ def run_llm(prompt: str,
             extra_headers: Optional[dict] = None,
             request_path: Optional[str] = None,
             temperature: Optional[float] = None) -> str:
-    """
-    调用LLM生成响应
-    
-    Args:
-        prompt: 输入提示词
-        api_endpoint: API端点（从环境变量或默认值获取）
-        api_key: API密钥（从环境变量或默认值获取）
-        model: 模型名称（从环境变量或默认值获取）
-        debug_mode: 是否开启调试模式
-        max_retries: 最大重试次数
-    
-    Returns:
-        LLM响应字符串
+    """Generate a response using the configured LLM backend.
 
-    后端选择（环境变量 ``LLM_BACKEND``）：
-        - 未设置或空：通用 OpenAI 兼容网关（Bearer / ``/v1/chat/completions``）。
-        - ``jiekou`` / ``jiekou_ai``：与通用相同走 ``GeneralAPIInterface``；通常由
-          ``--llm_backend 3`` 设置，默认路径 ``LLM_REQUEST_PATH=/openai/v1/chat/completions``。
-        - ``comp`` / ``comp_openai`` / ``azure_apim`` / ``azure``：走项目内
-          ``新的接口.comp_openai_client``（COMP Azure API Management，
-          ``api-key`` 头 + ``/azure/openai/deployments/<部署名>/chat/completions``）。
-          此时 ``api_endpoint`` 应为网关主机名（如 ``comp.azure-api.net``），
-          ``model`` 为部署名（Deployment Name）；勿与通用网关的 ``LLM_REQUEST_PATH`` 混用。
-    """
-    # 从环境变量或参数获取配置（主机名须不含路径，避免误打到门户首页）
+    The default and Jiekou backends use GeneralAPIInterface. Legacy COMP/Azure
+    aliases use an external COMP adapter, API-key authorization and a deployment
+    name. Gateway hosts must not contain a request path. Offline fixture behavior
+    and request accounting apply before backend dispatch."""
+    # Resolve a bare gateway hostname; keep the request path separate.
     api_endpoint = normalize_llm_api_host(
         api_endpoint or os.getenv("LLM_API_ENDPOINT", "api.bltcy.ai")
     )
@@ -420,7 +396,7 @@ def run_llm(prompt: str,
     if backend in ("comp", "comp_openai", "azure_apim", "azure"):
         if os.getenv("LLM_CACHE_MODE", "").strip().lower() == "readonly":
             raise ValueError("Legacy COMP backend has no offline replay support; refusing network access")
-        comp = importlib.import_module("新的接口.comp_openai_client")
+        comp = importlib.import_module("\u65b0\u7684\u63a5\u53e3.comp_openai_client")
         rp = request_path if (request_path and str(request_path).strip()) else None
         return comp.run_llm(
             prompt,
@@ -433,7 +409,7 @@ def run_llm(prompt: str,
             extra_headers=merged_extra if merged_extra else None,
             request_path=rp,
         )
-    
+
     if not api_key:
         raise ValueError(
             "LLM API key not provided. Set LLM_API_KEY environment variable or pass api_key parameter.\n"
@@ -473,8 +449,8 @@ def run_llm(prompt: str,
             }
         )
         return cached
-    
-    # 创建接口实例
+
+
     interface = GeneralAPIInterface(
         api_endpoint,
         api_key,

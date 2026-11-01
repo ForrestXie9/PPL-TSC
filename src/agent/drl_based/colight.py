@@ -20,7 +20,7 @@ class CoLight(BaseDRL):
         super(CoLight, self).__init__(config, env, idx)
 
         n_neighbor_idx = env.n_intersection[idx].n_neighbor_idx
-        # 异构路口：共享 tailing_net 需输出 max(n_phase)，否则 phase 数多的 agent 会 gather 越界
+        # Shared output width must cover the largest phase count across intersections.
         max_num_phase = max(len(inter.n_phase) for inter in env.n_intersection)
         self.network_local = _Network(
             len(self.inter.n_lane_id),
@@ -50,7 +50,7 @@ class CoLight(BaseDRL):
         self.network_local.eval()
         with torch.no_grad():
             b_q_value = self.network_local(n_obs)
-            # 异构路口：tailing_net 输出 agent0 的维度，当前 agent 可能相位更少，只取有效 Q 值
+            # Mask outputs that are not valid phases for this intersection.
             q_valid = b_q_value[:, : self.num_phase]
             action = torch.argmax(q_valid, dim=1).item()
             if on_training and random.random() < self.cur_agent['epsilon']:  # explore
@@ -106,7 +106,7 @@ class _Network(torch.nn.Module):
         self.idx = idx
         self.n_neighbor_idx = n_neighbor_idx
         self.is_target_network = is_target_network
-        # 异构路口：tailing_net 输出维度需覆盖所有 agent 的 max_num_phase
+        # Cover all intersections with the shared output layer.
         self.max_num_phase = max_num_phase if max_num_phase is not None else num_phase
 
         self.dim_embedding = 32
@@ -146,7 +146,7 @@ class _Network(torch.nn.Module):
                 ) for _ in range(self.num_head)
             ])  # W_c in Eq. 8
 
-            # q value prediction layer（异构路口：输出 max_num_phase 以支持 phase 数不同的 agent）
+            # Shared Q-value output layer for heterogeneous phase counts.
             self.tailing_net = torch.nn.Sequential(
                 torch.nn.Linear(in_features=self.dim_representation, out_features=self.dim_representation),
                 torch.nn.ReLU(),

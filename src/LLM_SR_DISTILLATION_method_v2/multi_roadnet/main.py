@@ -329,10 +329,10 @@ Example:
         default="1",
         choices=["1", "2", "3", "4"],
         help=(
-            "默认1=通用网关（可选 general_llm_embedded.py）；"
+            "Default 1: general gateway (optional general_llm_embedded.py); "
             "2=COMP（comp_llm_embedded.py）；"
-            "3=Jiekou.AI（jiekou_llm_embedded.py）。不写亦为1（忽略环境中的 LLM_BACKEND）。"
-            "4=云雾（yunwu_llm_embedded.py）。"
+            "3: Jiekou.AI (optional jiekou_llm_embedded.py). Omission selects 1 and ignores a stale LLM_BACKEND. "
+            "4: Yunwu (yunwu_llm_embedded.py). "
         ),
     )
     parser.add_argument("--population_size", type=int, default=5)
@@ -416,7 +416,7 @@ Example:
     print_llm_startup_banner(
         llm_api_endpoint,
         llm_model,
-        title="LLM 调用（multi-roadnet）",
+        title="LLM configuration (multiple road networks)",
         cli_llm_model=args.llm_model,
     )
 

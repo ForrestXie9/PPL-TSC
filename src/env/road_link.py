@@ -6,11 +6,11 @@ class RoadLink:
     def __init__(self, roadlink_dict, intersection):
         self.intersection = intersection
 
-        self.startroad_id = roadlink_dict['startRoad']  # str 入射路的名字
-        self.endroad_id = roadlink_dict['endRoad']  # str 出射路的名字
+        self.startroad_id = roadlink_dict['startRoad']  # Incoming road ID.
+        self.endroad_id = roadlink_dict['endRoad']  # Outgoing road ID.
 
-        self.n_lanelink_id = []  # type: List[Tuple[str, str]]  # 车道组合, 入射车道是确定的, 出射车道不确定
-        self.n_startlane_id = []  # type: List[str]  # 正常来说只有一个元素
+        self.n_lanelink_id = []  # Incoming/outgoing lane-link pairs.
+        self.n_startlane_id = []  # type: List[str]
         self.n_endlane_id = []
         for lanelink_dict in roadlink_dict['laneLinks']:
             startlane_id = '{}_{}'.format(self.startroad_id, lanelink_dict['startLaneIndex'])
@@ -18,7 +18,7 @@ class RoadLink:
             self.n_lanelink_id.append((startlane_id, endlane_id))
             self.n_startlane_id.append(startlane_id)
             self.n_endlane_id.append(endlane_id)
-        self.n_lanelink_id = list_with_unique_element(self.n_lanelink_id)  # 去重
+        self.n_lanelink_id = list_with_unique_element(self.n_lanelink_id)  # Remove duplicate lane links.
         self.n_startlane_id = list_with_unique_element(self.n_startlane_id)
         self.n_endlane_id = list_with_unique_element(self.n_endlane_id)
 

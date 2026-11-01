@@ -628,7 +628,7 @@ Examples:
         help="Continue a batch after a failed scenario. By default batches fail fast.",
     )
 
-    
+
 
     # LLM arguments
 
@@ -674,11 +674,11 @@ Examples:
         default="1",
         choices=["1", "2", "3", "4"],
         help=(
-            "默认 1：通用 OpenAI 兼容（可选 general_llm_embedded.py 提供默认 host/key/model）；"
+            "Default 1: general OpenAI-compatible API (optional defaults in general_llm_embedded.py); "
             "2：COMP Azure APIM（comp_llm_embedded.py）；"
-            "3：Jiekou.AI OpenAI 兼容（jiekou_llm_embedded.py，默认 api.jiekou.ai + /openai/v1/chat/completions）。"
-            "4：云雾 OpenAI 兼容（yunwu_llm_embedded.py，默认 yunwu.ai + /v1/chat/completions）。"
-            "不写本参数时亦为 1（忽略 shell 中的 LLM_BACKEND）。"
+            "3: Jiekou.AI (optional jiekou_llm_embedded.py; api.jiekou.ai + /openai/v1/chat/completions). "
+            "4: Yunwu (yunwu_llm_embedded.py; yunwu.ai + /v1/chat/completions). "
+            "Omitting this option also selects 1 and ignores a stale shell LLM_BACKEND."
         ),
     )
 
@@ -698,7 +698,7 @@ Examples:
         ),
     )
 
-    
+
 
     # Evolution arguments
 
@@ -748,7 +748,7 @@ Examples:
 
     )
 
-    
+
 
     # Constraint validation arguments
 
@@ -809,7 +809,7 @@ Examples:
 
     )
 
-    
+
 
     # Other arguments
 
@@ -1048,7 +1048,7 @@ Examples:
 
     )
 
-    
+
 
     args = parser.parse_args()
 
