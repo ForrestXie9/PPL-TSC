@@ -1,0 +1,13 @@
+.env
+.env.*
+!.env.example
+.venv/
+__pycache__/
+*.pyc
+*.so
+*.egg-info/
+outputs/
+*.pth
+*.pt
+CityFlow/build/
+CityFlow/dist/

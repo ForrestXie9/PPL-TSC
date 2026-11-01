@@ -1,0 +1,203 @@
+{
+  "status": "passed_after_runtime_fix",
+  "API_calls": 0,
+  "clean_install": {
+    "status": "passed",
+    "platform": "Linux x86_64",
+    "python": "3.10.20",
+    "new_venv": true,
+    "dependencies": "requirements-current-lock.txt and pinned CPU Torch",
+    "pip_check": "passed",
+    "CityFlow_build": "passed",
+    "isolated_policy_execution": "passed after runtime mount-order correction"
+  },
+  "DRL_teachers": {
+    "families": [
+      "CoLight",
+      "FRAP",
+      "MPLight",
+      "TinyLight",
+      "EcoLight"
+    ],
+    "source_scenarios": [
+      "Hangzhou1",
+      "Atlanta"
+    ],
+    "episodes_per_training_test": 2,
+    "train_collect_config_preflight": "all passed",
+    "MPLight_checkpoint_resume": "passed, resumed after episode 1 and completed episode 2"
+  },
+  "method_pipeline": {
+    "substituted_component": "LLM responses replaced with deterministic test functions; no network calls",
+    "unchanged_components": [
+      "feature statistics",
+      "prompt construction",
+      "parsing",
+      "verifier",
+      "CMA-ES",
+      "CityFlow control evaluation",
+      "ABF and capped CP scoring",
+      "parent replacement",
+      "deployment export"
+    ],
+    "outer_population": 5,
+    "generations": 5,
+    "CMA_population": 20,
+    "CMA_max_iterations": 20,
+    "bias_bound": 0.5,
+    "interfaces": [
+      {
+        "variant": "CoLight",
+        "status": "passed",
+        "search": "5x5 offline fixture responses",
+        "calibration": "20x20 maximum",
+        "source_replay_matches_search_ATT": true,
+        "evaluations": 2,
+        "API_calls": 0
+      },
+      {
+        "variant": "FRAP",
+        "status": "passed",
+        "search": "5x5 offline fixture responses",
+        "calibration": "20x20 maximum",
+        "source_replay_matches_search_ATT": true,
+        "evaluations": 3,
+        "API_calls": 0
+      },
+      {
+        "variant": "MPLight",
+        "status": "passed",
+        "search": "5x5 offline fixture responses",
+        "calibration": "20x20 maximum",
+        "source_replay_matches_search_ATT": true,
+        "evaluations": 3,
+        "API_calls": 0
+      },
+      {
+        "variant": "TinyLight",
+        "status": "passed",
+        "search": "5x5 offline fixture responses",
+        "calibration": "20x20 maximum",
+        "source_replay_matches_search_ATT": true,
+        "evaluations": 2,
+        "API_calls": 0
+      },
+      {
+        "variant": "EcoLight-native",
+        "status": "passed",
+        "search": "5x5 offline fixture responses",
+        "calibration": "20x20 maximum",
+        "source_replay_matches_search_ATT": true,
+        "evaluations": 3,
+        "API_calls": 0
+      },
+      {
+        "variant": "EcoLight-phase-selection",
+        "status": "passed",
+        "search": "5x5 offline fixture responses",
+        "calibration": "20x20 maximum",
+        "source_replay_matches_search_ATT": true,
+        "evaluations": 3,
+        "API_calls": 0
+      }
+    ]
+  },
+  "additional_tests": {
+    "unit_tests_passed": 42,
+    "registered_agent_imports": [
+      [
+        "BaseAgent",
+        "ok"
+      ],
+      [
+        "BaseDRL",
+        "ok"
+      ],
+      [
+        "AttendLight",
+        "ok"
+      ],
+      [
+        "CoLight",
+        "ok"
+      ],
+      [
+        "EcoLight",
+        "ok"
+      ],
+      [
+        "FRAP",
+        "ok"
+      ],
+      [
+        "MPLight",
+        "ok"
+      ],
+      [
+        "AdvancedMPLight",
+        "ok"
+      ],
+      [
+        "AdvancedCoLight",
+        "ok"
+      ],
+      [
+        "PressLight",
+        "ok"
+      ],
+      [
+        "TinyLight",
+        "ok"
+      ],
+      [
+        "RandomPath",
+        "ok"
+      ],
+      [
+        "MaxPressure",
+        "ok"
+      ],
+      [
+        "FixedTime",
+        "ok"
+      ],
+      [
+        "SOTL",
+        "ok"
+      ],
+      [
+        "PiLight",
+        "ok"
+      ],
+      [
+        "MCTS_synthesizer",
+        "ok"
+      ]
+    ],
+    "exported_policy_replays": 16,
+    "all_source_replays_match_search_ATT_to": 1e-06
+  },
+  "fixes": [
+    {
+      "module": "src/LLM_SR_DISTILLATION/policy_process.py",
+      "issue": "Private /tmp was mounted after runtime directories, hiding virtual environments installed under /tmp.",
+      "fix": "Mount private /tmp before read-only runtime binds; retain isolation and resource limits.",
+      "regression_test": "tests/test_policy_mount_order.py"
+    },
+    {
+      "module": "scripts/setup_venv.sh",
+      "issue": "Installer previously checked dependency installation only.",
+      "fix": "Run scripts/check_environment.py to confirm imports and isolated execution before reporting ready."
+    }
+  ],
+  "test_fixture_correction": "First native fixture returned the same score for keep/switch and was correctly rejected by demand discrimination. Corrected fixture explicitly scores the two action IDs. Verifier was not relaxed.",
+  "limitations": [
+    "No fresh paid-provider distillation was run; mocked API tests cover retries/cache/redaction, not live provider availability or quality.",
+    "Two-episode teacher training validates execution, not convergence or paper performance.",
+    "Six offline searches use source Hangzhou1; arbitrary topology coverage is not established.",
+    "CoLight cross-network compatibility remains conditional; TinyLight cross-network protocol is not provided.",
+    "Other registered agents passed imports only; full training/evaluation coverage applies to the five documented DRL teachers.",
+    "Finite verifier probes do not prove all-input traffic safety.",
+    "Project/third-party licensing remains an author release prerequisite."
+  ]
+}

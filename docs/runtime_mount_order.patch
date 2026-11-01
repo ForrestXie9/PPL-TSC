@@ -1,0 +1,23 @@
+--- before/policy_process.py
++++ src/LLM_SR_DISTILLATION/policy_process.py
+@@ -39,7 +39,10 @@
+             if not bwrap:
+                 raise PolicyExecutionError("Install bubblewrap for default filesystem/network isolation; "
+                                            "PPL_POLICY_ISOLATION=process explicitly selects process/resource limits only")
+-            command = [bwrap, "--unshare-all", "--die-with-parent", "--new-session", "--cap-drop", "ALL"]
++            command = [bwrap, "--unshare-all", "--die-with-parent", "--new-session", "--cap-drop", "ALL",
++                       "--tmpfs", "/tmp"]
++            # Create private /tmp before binding runtime paths: a venv under /tmp
++            # must remain visible. Only its runtime directory is rebound read-only.
+             # Mount interpreter/runtime dependencies, not the research workspace.
+             mounted = []
+             for path in ["/usr", "/lib", "/lib64", "/bin", sys.base_prefix, sys.prefix]:
+@@ -47,7 +50,7 @@
+                 if p.exists() and not any(p == q or p.is_relative_to(q) for q in mounted):
+                     command += ["--ro-bind", str(p), str(p)]; mounted.append(p)
+             command += ["--ro-bind", str(worker), "/worker.py", "--proc", "/proc", "--dev", "/dev",
+-                        "--tmpfs", "/tmp", "--dir", "/work", "--chdir", "/work",
++                        "--dir", "/work", "--chdir", "/work",
+                         executable, "-I", "-u", "/worker.py"]
+         env = {"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8", "OMP_NUM_THREADS": "1",
+                "OPENBLAS_NUM_THREADS": "1", "MKL_NUM_THREADS": "1", "NUMEXPR_NUM_THREADS": "1"}

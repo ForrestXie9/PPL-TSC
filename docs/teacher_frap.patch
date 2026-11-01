@@ -1,0 +1,15 @@
+--- reference/pi_light/agent/drl_based/frap.py
++++ src/agent/drl_based/frap.py
+@@ -22,6 +22,12 @@
+             len(self.inter.n_phase),
+             self.phase_2_passable_lanelink
+         )
++
++        # Move models to the specified device (CPU or CUDA)
++        self.network_local = self.network_local.to(self.config['device'])
++        self.network_target = self.network_target.to(self.config['device'])
++        self.phase_2_passable_lanelink = self.phase_2_passable_lanelink.to(self.config['device'])
++
+         self.network_optim = optim.RMSprop(
+             self.network_local.parameters(),
+             lr=self.cur_agent['learning_rate']
