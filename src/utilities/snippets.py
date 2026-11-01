@@ -38,22 +38,3 @@ def run_an_episode(env: TSCEnv, config: dict, on_training: bool, store_experienc
 
     return info
 
-
-def quant_run_a_step(env: TSCEnv, n_obs: List[torch.Tensor], on_training: bool, store_experience: bool, learn: bool):
-    n_action = []
-    for agent in env.n_agent:
-        action = agent.quan_pick_action(n_obs, on_training)
-        n_action.append(action)
-    n_next_obs, n_rew, n_done, info = env.step(n_action)
-    n_obs = n_next_obs
-    # optional: store experience
-    if store_experience:
-        for idx in range(env.n):
-            env.n_agent[idx].store_experience(n_obs[idx], n_action[idx], n_rew[idx], n_next_obs[idx], n_done[idx])
-
-    if learn:
-        for agent in env.n_agent:
-            agent.learn()
-
-    return n_next_obs, n_rew, n_done, info
-
