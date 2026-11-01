@@ -9,9 +9,9 @@ import numpy as np
 import time
 from typing import Dict, Callable, Optional, Any
 
-from LLM_SR_DISTILLATION_method_v2.function_utility import FunctionUtility
-from LLM_SR_DISTILLATION_method_v2.feature_extractor import FeatureExtractor
-from LLM_SR_DISTILLATION_method_v2.simulator import StudentSimulator, SimulationResult
+from LLM_SR_DISTILLATION.function_utility import FunctionUtility
+from LLM_SR_DISTILLATION.feature_extractor import FeatureExtractor
+from LLM_SR_DISTILLATION.simulator import StudentSimulator, SimulationResult
 
 
 class Evaluator:

@@ -1,5 +1,4 @@
 """LLM API adapters for symbolic expression generation."""
-import importlib
 import hashlib
 import json
 import os
@@ -375,10 +374,9 @@ def run_llm(prompt: str,
             temperature: Optional[float] = None) -> str:
     """Generate a response using the configured LLM backend.
 
-    The default and Jiekou backends use GeneralAPIInterface. Legacy COMP/Azure
-    aliases use an external COMP adapter, API-key authorization and a deployment
-    name. Gateway hosts must not contain a request path. Offline fixture behavior
-    and request accounting apply before backend dispatch."""
+    Supported gateways use GeneralAPIInterface. Hostnames and request paths are
+    configured separately. The unavailable private COMP adapter is rejected
+    before a network request; offline replay never permits network access."""
     # Resolve a bare gateway hostname; keep the request path separate.
     api_endpoint = normalize_llm_api_host(
         api_endpoint or os.getenv("LLM_API_ENDPOINT", "api.bltcy.ai")
@@ -396,18 +394,9 @@ def run_llm(prompt: str,
     if backend in ("comp", "comp_openai", "azure_apim", "azure"):
         if os.getenv("LLM_CACHE_MODE", "").strip().lower() == "readonly":
             raise ValueError("Legacy COMP backend has no offline replay support; refusing network access")
-        comp = importlib.import_module("\u65b0\u7684\u63a5\u53e3.comp_openai_client")
-        rp = request_path if (request_path and str(request_path).strip()) else None
-        return comp.run_llm(
-            prompt,
-            api_endpoint=api_endpoint,
-            api_key=api_key,
-            model=model,
-            debug_mode=debug_mode,
-            max_retries=max_retries,
-            auth_mode=auth_mode,
-            extra_headers=merged_extra if merged_extra else None,
-            request_path=rp,
+        raise ValueError(
+            "The private COMP/Azure adapter is not included. Configure an "
+            "OpenAI-compatible provider with an explicit endpoint and request path."
         )
 
     if not api_key:

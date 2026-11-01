@@ -1,1 +1,1 @@
-"""LLM parsing and OpenAI-compatible API helpers."""
+"""OpenAI-compatible LLM API helpers."""

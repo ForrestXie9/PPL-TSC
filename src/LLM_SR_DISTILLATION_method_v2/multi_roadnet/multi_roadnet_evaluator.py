@@ -9,7 +9,7 @@ import numpy as np
 from typing import Dict, List, Optional, Any, Tuple
 
 from LLM_SR_DISTILLATION_method_v2.evaluator import Evaluator
-from LLM_SR_DISTILLATION_method_v2.function_utility import FunctionUtility
+from LLM_SR_DISTILLATION.function_utility import FunctionUtility
 
 
 def sigmoid(x: float, beta: float = 1.0) -> float:

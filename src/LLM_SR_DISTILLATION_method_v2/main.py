@@ -15,14 +15,14 @@ import re
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from LLM_SR_DISTILLATION_method_v2.data_loader import TeacherDataLoader
+from LLM_SR_DISTILLATION.data_loader import TeacherDataLoader
 from LLM_SR_DISTILLATION.source_preparation import prepare_source, check_prepared_statistics
-from LLM_SR_DISTILLATION_method_v2.constraint_validator import ConstraintValidator
-from LLM_SR_DISTILLATION_method_v2.llm_generator import LLMGenerator
+from LLM_SR_DISTILLATION.constraint_validator import ConstraintValidator
+from LLM_SR_DISTILLATION.llm_generator import LLMGenerator
 from LLM_SR_DISTILLATION_method_v2.evaluator import Evaluator
 from LLM_SR_DISTILLATION_method_v2.evolution import Evolution
-from LLM_SR_DISTILLATION_method_v2.feature_extractor import build_feature_extractor
-from LLM_SR_DISTILLATION_method_v2.simulator import StudentSimulator
+from LLM_SR_DISTILLATION.feature_extractor import build_feature_extractor
+from LLM_SR_DISTILLATION.simulator import StudentSimulator
 from LLM_SR_DISTILLATION_method_v2.multi_roadnet.main import run_multi_roadnet_distillation
 from utilities.utils import (
     get_config,
@@ -529,32 +529,7 @@ def main():
     parser = argparse.ArgumentParser(
 
         description="LLM-based Symbolic Regression Distillation for Traffic Signal Control",
-        epilog="""
-Examples:
-  # Single teacher (default data path)
-  python -m LLM_SR_DISTILLATION_method_v2.main
-
-  # Single teacher with explicit paths
-  python -m LLM_SR_DISTILLATION_method_v2.main --teacher_data_path data_cache/MPLight/Jinan/flow0.json --teacher_model MPLight
-
-  # Single teacher with custom output dir and generations
-  python -m LLM_SR_DISTILLATION_method_v2.main --teacher_data_path data_cache/MPLight/Jinan/flow0.json --teacher_model MPLight --output_dir ./my_results --n_generations 5 --population_size 3
-
-  # Multiple teachers / scenarios (batch run)
-  python -m LLM_SR_DISTILLATION_method_v2.main --teachers_config LLM_SR_DISTILLATION_method_v2/teachers_config_example.json
-
-  # MPLight all scenarios (Atlanta, Hangzhou1/2/3, Jinan, LosAngeles, Manhattan)
-  python -m LLM_SR_DISTILLATION_method_v2.main --teachers_config LLM_SR_DISTILLATION_method_v2/teachers_config_MPLight_all.json
-
-  # Joint mode (one teacher, all roadnets, one model):
-  python -m LLM_SR_DISTILLATION_method_v2.main --teachers_config LLM_SR_DISTILLATION_method_v2/multi_roadnet/teachers_config_multi_roadnet_example.json
-
-  # teachers_config formats:
-  # Sequential (list): one model per entry
-  # [{"teacher_data_path": "...", "teacher_model": "MPLight", "scenario": "Jinan_flow"}, ...]
-  # Joint (dict): one model for all roadnets
-  # {"teacher_model": "MPLight", "roadnet_configs": [{"teacher_data_path": "...", "scenario": "Jinan"}, ...]}
-"""
+        epilog='Use the public run.py entrypoint with a prepared JSON config for the standard workflow.'
     )
     # Data arguments
 
@@ -640,7 +615,7 @@ Examples:
 
         default=None,
 
-        help="LLM API hostname only (e.g. comp.azure-api.net, api.jiekou.ai, yunwu.ai). Default: env LLM_API_ENDPOINT, else embedded/built-in host per --llm_backend (1/2/3/4).",
+        help="LLM API hostname. Defaults to LLM_API_ENDPOINT or the selected gateway preset.",
 
     )
 
@@ -664,7 +639,7 @@ Examples:
 
         default=None,
 
-        help="Model / Azure deployment name (or LLM_MODEL env). Default depends on LLM_BACKEND.",
+        help="Model name. Defaults to LLM_MODEL or the selected gateway preset.",
 
     )
 
@@ -672,13 +647,10 @@ Examples:
         "--llm_backend",
         type=str,
         default="1",
-        choices=["1", "2", "3", "4"],
+        choices=["1", "3", "4"],
         help=(
-            "Default 1: general OpenAI-compatible API (optional defaults in general_llm_embedded.py); "
-            "2：COMP Azure APIM（comp_llm_embedded.py）；"
-            "3: Jiekou.AI (optional jiekou_llm_embedded.py; api.jiekou.ai + /openai/v1/chat/completions). "
-            "4: Yunwu (yunwu_llm_embedded.py; yunwu.ai + /v1/chat/completions). "
-            "Omitting this option also selects 1 and ignores a stale shell LLM_BACKEND."
+            "1: general OpenAI-compatible API (default); 3: Jiekou; 4: Yunwu. "
+            "Explicit CLI and environment settings override preset defaults."
         ),
     )
 
@@ -1082,7 +1054,7 @@ Examples:
 
     from LLM_SR_DISTILLATION_method_v2.llm_runtime_info import print_llm_startup_banner
 
-    print_llm_startup_banner(llm_api_endpoint, llm_model, cli_llm_model=args.llm_model)
+    print_llm_startup_banner(llm_api_endpoint, llm_model)
 
     if args.teachers_config:
         with open(args.teachers_config, 'r', encoding='utf-8') as f:
