@@ -109,7 +109,7 @@ def check_statistics(actual,expected):
  return dict(status='passed',feature_names=sorted(actual),scalar_fields=sum(len(v) for v in actual.values()))
 
 
-def prepare_source(loader, teacher_model, observation_features, config, action_mode):
+def prepare_source(loader, teacher_model, observation_features, config, action_mode, *, project_root=None):
  """Check authoritative topology and every source row before generating candidates.
 
  Missing source files/metadata are preparation errors, never candidate failures.
@@ -120,7 +120,7 @@ def prepare_source(loader, teacher_model, observation_features, config, action_m
   need(meta.get('model','').casefold()==teacher_model.casefold(),'Source teacher metadata mismatch')
   dataset=meta.get('dataset');flow=meta.get('flow_idx')
   need(isinstance(dataset,str) and bool(dataset) and type(flow) is int and flow>=0,'Missing source dataset/flow metadata')
-  root=Path(os.environ.get('METHOD_PROJECT_ROOT') or Path(__file__).resolve().parents[2])
+  root=Path(project_root or os.environ.get('METHOD_PROJECT_ROOT') or Path(__file__).resolve().parents[2])
   road=root/'data'/dataset/'roadnet.json';flow_file=road.parent/f'flow_{flow}.json'
   need(road.is_file() and flow_file.is_file(),'Source roadnet/flow file missing')
   for key,path in [('roadnet_sha256',road),('flow_sha256',flow_file)]:

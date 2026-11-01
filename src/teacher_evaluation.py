@@ -65,9 +65,7 @@ def build_config(
     config.update(
         {
             "cur_agent": teacher,
-            # These helpers replay the historical rebuttal protocol. New
-            # training/collection explicitly use the corrected semantics.
-            "waiting_time_semantics": "legacy_per_read",
+            "waiting_time_semantics": "per_decision",
             "save_result": False,
             "saveReplay": False,
             "render": False,
@@ -112,10 +110,6 @@ def run_episode(
             current_step,
         )
         observations, _reward, done, info = env.step(actions)
-        if controller is None:
-            # Teacher actions consume observations directly. Student actions
-            # ignore this value and rebuild structured phase states from env.
-            pass
         action_steps += 1
         if all(done):
             break

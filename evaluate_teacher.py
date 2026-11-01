@@ -47,9 +47,12 @@ def main():
  from ppl_tsc_current.artifact_io import evaluation_record
  with evaluation_record(a.output, {'checkpoint_path':str(a.checkpoint.resolve()),'scenario':a.scenario,'flow':a.flow,'protocol':a.protocol}) as commit_result:
   audit=json.loads(a.training_audit.read_text());teacher=audit['teacher']
-  if audit.get('status')!='complete':p.error('Teacher training audit is not complete')
+  if teacher not in {'CoLight','EcoLight','FRAP','MPLight','TinyLight'}:p.error('Unsupported teacher in training audit')
+  if audit.get('scenario') not in {path.name for path in (ROOT/'data').iterdir() if path.is_dir()}:p.error('Unsupported source scenario in training audit')
+  from collect_teacher import validate_checkpoint_audit
+  validate_checkpoint_audit(a.checkpoint,a.training_audit,teacher,ROOT/'data'/audit['scenario']/'roadnet.json',
+                            traffic_config=ROOT/'configs/traffic.json',environment_semantics='per_decision')
   a.seed=resolve_seed(a.seed,audit)
-  if audit['checkpoint_sha256']!=sha(a.checkpoint):p.error('Checkpoint does not match training audit')
   import teacher_evaluation as evaluation
   horizon={'Atlanta':900,'LosAngeles':1800}.get(a.scenario,3600)
   config=evaluation.build_config(ROOT/'configs/traffic.json',teacher,a.scenario,a.flow,a.seed,horizon,ROOT/'data'/a.scenario)
@@ -60,7 +63,7 @@ def main():
   else:
    if teacher=='TinyLight':p.error('PI-Light baseline-transfer script does not establish a TinyLight transfer protocol; use same_network')
    setup=lambda env:load_source_zero(env,config,a.checkpoint)
-  record={'teacher':teacher,'protocol':a.protocol,'source_scenario':audit['scenario'],'source_flow':audit['flow'],'target_scenario':a.scenario,'target_flow':a.flow,'checkpoint_sha256':sha(a.checkpoint),'target_roadnet_sha256':sha(ROOT/'data'/a.scenario/'roadnet.json'),'target_flow_sha256':sha(ROOT/'data'/a.scenario/f'flow_{a.flow}.json'),'simulation_seed':a.seed,'horizon':horizon,'target_training':False,'source_agent':0 if a.protocol=='source_agent0' else 'each original intersection'}
+  record={'teacher':teacher,'protocol':a.protocol,'source_scenario':audit['scenario'],'source_flow':audit['flow'],'target_scenario':a.scenario,'target_flow':a.flow,'checkpoint_sha256':sha(a.checkpoint),'training_audit_sha256':sha(a.training_audit),'traffic_config_sha256':sha(ROOT/'configs/traffic.json'),'environment_semantics':config['waiting_time_semantics'],'target_roadnet_sha256':sha(ROOT/'data'/a.scenario/'roadnet.json'),'target_flow_sha256':sha(ROOT/'data'/a.scenario/f'flow_{a.flow}.json'),'simulation_seed':a.seed,'horizon':horizon,'target_training':False,'source_agent':0 if a.protocol=='source_agent0' else 'each original intersection'}
   result=evaluation.run_episode(config,None,evaluation.teacher_action_builder,setup)
   att=result['metrics']['ATT']
   if not math.isfinite(att) or att<=0:raise ValueError('Teacher evaluation produced invalid ATT')

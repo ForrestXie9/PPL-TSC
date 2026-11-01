@@ -7,7 +7,8 @@ from pathlib import Path
 import tempfile
 
 
-def atomic_json(path, value):
+def atomic_json(path, value, *, overwrite=True):
+    """Publish complete JSON, optionally requiring a new destination."""
     path = Path(path)
     # Validate serialization before touching the destination.
     payload = json.dumps(value, indent=2, allow_nan=False) + '\n'
@@ -19,7 +20,10 @@ def atomic_json(path, value):
             stream.write(payload)
             stream.flush()
             os.fsync(stream.fileno())
-        temporary.replace(path)
+        if overwrite:
+            temporary.replace(path)
+        else:
+            os.link(temporary, path)
     finally:
         temporary.unlink(missing_ok=True)
 
