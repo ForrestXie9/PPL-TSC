@@ -8,10 +8,10 @@ class Road:
         self.road_dict = road_dict
 
         self.road_direction = self._get_road_direction()
-        self.n_lane_id = []  # type: List[str]  # 几条车道的名字
+        self.n_lane_id = []  # type: List[str]
         self.length = self._get_road_length()
         # print('     road length', self.length)
-        for lane_idx in range(len(self.road_dict['lanes'])):  # 2或者3个
+        for lane_idx in range(len(self.road_dict['lanes'])):
             self.n_lane_id.append('{}_{}'.format(road_dict['id'], lane_idx))
 
     def _get_road_direction(self):

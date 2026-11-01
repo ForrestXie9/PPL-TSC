@@ -102,7 +102,7 @@ class TSCEnv:
         # parsing intersections
         self.id2intersection = {}
         self.n_intersection = []
-        for idx, inter_dict in enumerate(  # 排除虚拟节点和phase数为0的节点
+        for idx, inter_dict in enumerate(  # Exclude virtual nodes and intersections without signal phases.
                 filter(lambda inter_: (not inter_['virtual']) and (len(inter_['trafficLight']['lightphases']) > 1),
                        self.roadnet_dic['intersections'])
         ):
@@ -116,10 +116,10 @@ class TSCEnv:
                 if idx == jdx:
                     continue
                 if not set(inter_i.n_out_road).isdisjoint(set(inter_j.n_in_road)):
-                    inter_i.n_neighbor_idx.append(inter_j.inter_idx)  # 为了 colight服务的
+                    inter_i.n_neighbor_idx.append(inter_j.inter_idx)  # Neighbor mapping used by CoLight.
         self.n = len(self.n_intersection)
 
-        # 每个交叉口的动作空间
+        # One action space per intersection.
         self.n_action_space = [gym.spaces.Discrete(len(inter.n_phase)) for inter in self.n_intersection]
         intersection_n_phase = [len(inter.n_phase) for inter in self.n_intersection]
         intersection_num_roadlink = [len(inter.n_roadlink) for inter in self.n_intersection]
@@ -192,7 +192,7 @@ class TSCEnv:
 
     def step(self, n_action):
         self.last_action, self.current_action = self.current_action, n_action
-        for _ in range(self.config['action_interval']):  # interval是最小时间间隔, action_interval动作间隔包含了好几个 interval
+        for _ in range(self.config['action_interval']):  # One control decision spans action_interval simulator advances.
             for inter, action in zip(self.n_intersection, n_action):
                 inter.step(action, self.interval)
             self.eng.next_step()
@@ -230,7 +230,7 @@ class TSCEnv:
 
     def _get_n_obs_shape(self):
         n_shape = []
-        n_obs = self._get_n_obs()  # 每个路口的观察, 不同路口的特征维度可能不同
+        n_obs = self._get_n_obs()  # Observation dimensions may differ between intersections.
         for inter_obs in n_obs:
             shape = []
             for feature in inter_obs:
@@ -243,7 +243,7 @@ class TSCEnv:
 
     def _get_n_obs(self):
         n_obs = []
-        for inter in self.n_intersection:  # 每个交叉口
+        for inter in self.n_intersection:
             obs = []
             for observation_feature in self.config[self.config['cur_agent']]['observation_feature_list']:
                 feature = self._info_functions[observation_feature](inter)
@@ -276,7 +276,7 @@ class TSCEnv:
     def _get_n_done(self):
         return [False for _ in range(self.n)]
 
-    def _get_info(self):  # 四个 metric
+    def _get_info(self):  # Return the four recorded traffic metrics.
         info = {}
         for metric_feature in self.config[self.config['cur_agent']]['metric_feature_list']:
             info[metric_feature] = self._info_functions[metric_feature]()
@@ -303,7 +303,7 @@ class TSCEnv:
     # Functions below are used for info collection
     ##############################################
 
-    def _get_vehicle_waiting_time(self):  # 每辆车等待的次数, 一次代表20秒, 可以累积
+    def _get_vehicle_waiting_time(self):  # Accumulate waiting decisions; duration follows the configured action interval.
         # A feature read must not advance time. Historical artifacts deliberately
         # retain the old behavior through an explicit reproduction-only mode.
         cur_time = self.eng.get_current_time()
@@ -318,7 +318,7 @@ class TSCEnv:
                 self._vehicle_waiting_time[vehicle_id] = 0
             elif vehicle2speed[vehicle_id] < 0.1:  # vehicle is waiting
                 self._vehicle_waiting_time[vehicle_id] += 1
-            else:  # vehicle is moving 车子开起来以后会清空次数
+            else:  # Clear the waiting count when the vehicle starts moving.
                 self._vehicle_waiting_time[vehicle_id] = 0
         return self._vehicle_waiting_time
 
@@ -372,8 +372,8 @@ class TSCEnv:
         # for road in (inter.n_in_road if inroad_only else inter.n_road):
         for road in roadset:
             result_by_road = []
-            for lane_id in road.n_lane_id:  # 一条路上的所有车道
-                result_by_road.append(lane_stat_dict[lane_id])  # lane_stat_dict是每个车道的车子数量, 要么等着的, 要么在开的
+            for lane_id in road.n_lane_id:
+                result_by_road.append(lane_stat_dict[lane_id])  # Counts are stored per lane, for waiting or moving vehicles as requested.
             if unit == 'lane':
                 result_by_road = np.array(result_by_road)
             elif unit in ['road', 'intersection']:
@@ -396,7 +396,7 @@ class TSCEnv:
         lane_2_num_waiting_vehicle = self.eng.get_lane_waiting_vehicle_count()
         return self._concat_by_unit(lane_2_num_waiting_vehicle, inter, unit='lane', inroad_only=False, outroad_only=False)
 
-    # 这个函数原来计算的是，每条出射车道上每辆车等待次数的和。应该是bug，反正也没有论文用这个函数。
+    # Legacy aggregate of waiting counts over outgoing lanes.
     def _outlane_2_num_vehicle(self, inter: Intersection):
         lane_2_num_vehicle = self.eng.get_lane_vehicle_count()
         return self._concat_by_unit(lane_2_num_vehicle, inter, unit='lane', inroad_only=False, outroad_only=True)
@@ -448,8 +448,8 @@ class TSCEnv:
         vehicle_2_waiting_time = self._get_vehicle_waiting_time()
 
         n_lane_waiting_time = []
-        for road in inter.n_road:  # 遍历所有的路
-            for lane_id in road.n_lane_id:  # 遍历每条路的车道名字
+        for road in inter.n_road:
+            for lane_id in road.n_lane_id:
                 lane_waiting_time = 0.
                 for vehicle_id in lane_2_n_vehicle_id[lane_id]:
                     lane_waiting_time += vehicle_2_waiting_time[vehicle_id]
@@ -481,7 +481,7 @@ class TSCEnv:
         return n_lane_delay
 
     def _lane_2_delay(self, inter):
-        # 每条车道的delay是这样计算的: 1. - lane_avg_speed / speed_limit
+        # Lane delay is 1 - average_speed / speed_limit.
         # by default the speed limit is 11.11
         speed_limit = 11.11
         lane_2_n_vehicle_id = self.eng.get_lane_vehicles()
@@ -492,10 +492,10 @@ class TSCEnv:
             for lane_id in road.n_lane_id:
                 n_vehicle_id = lane_2_n_vehicle_id[lane_id]
                 vehicle_speed_sum = 0
-                for vehicle_id in n_vehicle_id:  # 把一个车道中所有的车子速度加起来
+                for vehicle_id in n_vehicle_id:
                     vehicle_speed_sum += vehicle_2_speed[vehicle_id]
-                # 求平均速度
-                if len(n_vehicle_id) == 0:  # 没有车子 那么就是全速
+
+                if len(n_vehicle_id) == 0:  # An empty lane has zero delay.
                     lane_avg_speed = speed_limit
                 else:
                     lane_avg_speed = vehicle_speed_sum * 1.0 / len(n_vehicle_id)
@@ -531,13 +531,13 @@ class TSCEnv:
         lane_2_vehicle_count = self.eng.get_lane_vehicle_count()
 
         n_lane_pressure = []
-        for in_road in inter.n_in_road:  # 每一条入射道路
+        for in_road in inter.n_in_road:
             for lane_id in in_road.n_lane_id:
                 lane_pressure = 0.0
                 for road_link in inter.n_roadlink:  #
                     if road_link.startroad_id != in_road.road_id:
                         continue
-                    for lane_link in road_link.n_lanelink_id:  # 3种或两种可能的车道组合的pressure加起来
+                    for lane_link in road_link.n_lanelink_id:  # Aggregate pressure over lane links for each road movement.
                         if lane_link[0] == lane_id:
                             lane_pressure += lane_2_vehicle_count[lane_link[0]]
                             lane_pressure -= lane_2_vehicle_count[lane_link[1]]
@@ -592,15 +592,15 @@ class TSCEnv:
     def _lane_2_num_vehicle_seg_by_k(self, inter: Intersection):
         lane_2_n_vehicle_id = self.eng.get_lane_vehicles()
         vehicle_2_distance = self.eng.get_vehicle_distance()
-        # k = self.config[self.config['cur_agent']]['K']  没有该参数
+
         k = 17
 
         n_lane_2_num_vehicle_seg_by_k = []
         for road in inter.n_road:
-            for lane_id in road.n_lane_id:  # 每一条路的车道名字
+            for lane_id in road.n_lane_id:
                 lane_2_num_vehicle_seg_by_k = [0.0 for _ in range(k)]
                 n_vehicle_id = lane_2_n_vehicle_id[lane_id]
-                for vehicle_id in n_vehicle_id:  # 每个车道上的车子名字
+                for vehicle_id in n_vehicle_id:
                     vehicle_distance = vehicle_2_distance[vehicle_id]
                     idx = floor(vehicle_distance / (road.length / k))
                     idx = max(min(idx, k - 1), 0)
@@ -644,7 +644,7 @@ class TSCEnv:
                 n_outlane_2_num_vehicle_seg_by_k.extend(outlane_2_num_vehicle_seg_by_k)
         return np.array(n_outlane_2_num_vehicle_seg_by_k)
 
-    def _inlane_2_vehicle_dist(self, inter: Intersection):  # 新增的
+    def _inlane_2_vehicle_dist(self, inter: Intersection):
         lane_2_n_vehicle_id = self.eng.get_lane_vehicles()
         vehicle_2_distance = self.eng.get_vehicle_distance()
 
@@ -652,8 +652,8 @@ class TSCEnv:
         for road in inter.n_in_road:
             for lane_id in road.n_lane_id:
                 n_vehicle_id = lane_2_n_vehicle_id[lane_id]
-                one_lane = [road.length - vehicle_2_distance[i] for i in n_vehicle_id]  # 到交叉口的距离
-                one_lane = np.array(one_lane)  # 距离从小到大
+                one_lane = [road.length - vehicle_2_distance[i] for i in n_vehicle_id]  # Distance remaining to the intersection.
+                one_lane = np.array(one_lane)  # Sort by distance to the intersection.
                 one_lane.sort()
                 n_inlane_2_vehicle_dist.append(one_lane)
         return n_inlane_2_vehicle_dist
@@ -669,9 +669,9 @@ class TSCEnv:
         for road in inter.n_out_road:
             for lane_id in road.n_lane_id:
                 n_vehicle_id = lane_2_n_vehicle_id[lane_id]
-                one_lane = [vehicle_2_distance[i] for i in n_vehicle_id]  # 值越小, 越靠近交叉口
-                one_lane = np.array(one_lane)  # 距离由大到小
-                one_lane.sort()                # 变成由小到大
+                one_lane = [vehicle_2_distance[i] for i in n_vehicle_id]  # Smaller distances are closer to the intersection.
+                one_lane = np.array(one_lane)
+                one_lane.sort()                # Sort in ascending order.
                 n_outlane_2_vehicle_dist.append(one_lane)
         return n_outlane_2_vehicle_dist
 
@@ -723,11 +723,11 @@ class TSCEnv:
         n_road_delay = np.array(n_road_delay)
         return n_road_delay
 
-    def _inter_2_num_vehicle(self, inter):  # 一个交叉口, 所有入射车道在
+    def _inter_2_num_vehicle(self, inter):  # Total vehicles over incoming lanes.
         lane_2_num_vehicle = self.eng.get_lane_vehicle_count()
         return self._concat_by_unit(lane_2_num_vehicle, inter, unit='intersection', inroad_only=True, outroad_only=False)
 
-    def _inter_2_num_waiting_vehicle(self, inter):  # 一个交叉口, 所有入射车道在等待的车辆
+    def _inter_2_num_waiting_vehicle(self, inter):  # Waiting vehicles over incoming lanes.
         lane_2_num_waiting_vehicle = self.eng.get_lane_waiting_vehicle_count()
         return self._concat_by_unit(lane_2_num_waiting_vehicle, inter, unit='intersection', inroad_only=True, outroad_only=False)
 

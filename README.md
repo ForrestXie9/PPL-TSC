@@ -7,7 +7,7 @@ Discovering Programmatic Policies from Reinforcement Learning-Based Traffic Sign
 This folder contains the current PPL-TSC implementation, five DRL teacher implementations,
 from-scratch training/trajectory collection, and fixed-policy evaluation. **No pretrained
 weights, teacher trajectories, searched policies, API keys or historical experiment outputs
-are included.** See [中文操作说明](README.zh-CN.md).
+are included.** Documentation, command-line messages and source comments are in English.
 
 ## Installation
 
@@ -157,13 +157,21 @@ cross-network transfer is not established by the original baseline script. See
 
 ## Layout
 
-`src/`: method, agents, simulator adapters, verifier and calibration.
-`configs/examples/`: seven runnable template configurations.
-`data/`: seven roadnets and five flows each (inputs, not learned models).
-`CityFlow/`: simulator source and third-party notices.
-`benchmarks/`: collector/evaluation dependencies.
-`reference/pi_light/`: unmodified selected upstream files for provenance (not standalone entrypoints).
-`scripts/`: setup, configuration, explicit transfer export and package checks.
+| Directory | Contents | When it is used |
+|---|---|---|
+| `src/` | PPL-TSC search, prompts, verifier, calibration, teacher agents, environment adapters and replay buffer. | Training, distillation and evaluation. |
+| `configs/` | Traffic/environment settings and seven student-interface templates in `configs/examples/`. | Select a teacher interface and prepare a source experiment. |
+| `data/` | Seven road networks, each with `roadnet.json` and `flow_0.json` through `flow_4.json`. | Simulator inputs; these are not trained weights or results. |
+| `CityFlow/` | Simulator C++ source and its bundled build dependencies/licenses. | Built during installation. |
+| `scripts/` | Environment setup/checks, distillation preparation, formula-transfer export and release audit. | Installation, experiment preparation and validation. |
+| `benchmarks/` | Environment and teacher-evaluation helpers imported by the public collection/evaluation commands. | Required by those commands; the historical `OOD_Robustness` path does not force an OOD experiment. |
+| `tests/` | Offline regression tests and deterministic LLM fixtures. | Development and verification; fixtures are not learned policies or performance evidence. |
+| `docs/` | Teacher transfer protocol, upstream/runtime differences and validation records. | Understanding implementation details and checking provenance. |
+| `reference/pi_light/` | Selected, unmodified upstream teacher files and the original transfer script. | Source comparison and attribution; not imported by training or distillation. |
+
+Start with the root commands `train_teacher.py`, `collect_teacher.py`, `run.py`,
+`evaluate.py` and `evaluate_teacher.py`. You do not need to run files inside
+`reference/`, `tests/` or `docs/` to train a teacher or distill a policy.
 
 ## Release status and provenance
 

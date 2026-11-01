@@ -1,8 +1,6 @@
-"""
-AttendLight Agent for Traffic Signal Control
-迁移自 LLMTSCS-main：相位分组 + 双层 Multi-Head Attention，与论文/原实现一致。
-使用 inlane 观测 + phase_2_passable_lane_idx 做 per-phase 注意力再 phase-level 注意力。
-"""
+"""AttendLight adapter inherited from LLMTSCS-main.
+
+Uses incoming-lane observations, within-phase attention and attention across phases."""
 
 from agent.drl_based.base_drl import BaseDRL
 import torch
@@ -13,11 +11,8 @@ import random
 
 
 def _build_phase_map_from_intersection(inter):
-    """
-    从路口的 phase_2_passable_lane_idx 得到 phase_map：
-    phase_map[phase_id] = 该相位下可通行的车道索引列表（与 inlane 顺序一致）。
-    """
-    # phase_2_passable_lane_idx: list of length num_phase, 每个是 length=num_in_lane 的 0/1 列表
+    """Map each physical phase to its passable incoming-lane indices."""
+
     phase_map = []
     for phase_idx in range(len(inter.phase_2_passable_lane_idx)):
         lane_indices = [
@@ -29,28 +24,22 @@ def _build_phase_map_from_intersection(inter):
 
 
 class AttendLightNetwork(nn.Module):
-    """
-    相位分组 + 双层 MHA（对齐 LLMTSCS attendlight_agent.py）：
-    - 输入: (batch, num_lane)，每条 inlane 一个特征（如车辆数）
-    - 每条 lane embed 成 embed_dim
-    - 每个 phase：用该 phase 下的 lane 特征做 MHA，得到该 phase 的表示
-    - 对所有 phase 表示再做 MHA，然后 MLP 出 Q
-    """
+    """Embed lane features, attend within each phase, then attend across phase representations."""
 
     def __init__(self, num_lane, num_phase, phase_map, embed_dim=32, num_heads=4, hidden_dim=20):
         super(AttendLightNetwork, self).__init__()
         self.num_lane = num_lane
         self.num_phase = num_phase
-        self.phase_map = phase_map  # list of list, 不参与梯度，仅用于 forward 里索引
+        self.phase_map = phase_map  # Index metadata only; phase_map is not a learned parameter.
         self.embed_dim = embed_dim
         if embed_dim % num_heads != 0:
             embed_dim = ((embed_dim + num_heads - 1) // num_heads) * num_heads
         self.embed_dim = embed_dim
 
-        # 每条 lane 一个标量 -> embed_dim
+
         self.embed = nn.Linear(1, embed_dim)
 
-        # Per-phase: 用该 phase 内 lane 做 MHA（query=mean of lanes）
+        # Attend within each phase using the mean lane representation as the query.
         self.phase_lane_mha = nn.MultiheadAttention(
             embed_dim=embed_dim, num_heads=num_heads, batch_first=True, dropout=0.0
         )
@@ -65,14 +54,12 @@ class AttendLightNetwork(nn.Module):
         self.dense_q = nn.Linear(hidden_dim, num_phase)
         self.relu = nn.ReLU()
 
-        # 注册 phase_map 为 buffer 以便在 forward 里用 tensor 索引（可选）
-        # 这里用 list 在 CPU 上索引即可，不注册
+
+
         print(f"[AttendLightNetwork] num_lane={num_lane}, num_phase={num_phase}, embed_dim={embed_dim}, num_heads={num_heads}")
 
     def forward(self, x):
-        """
-        x: (batch, num_lane) 或 list of tensors（会 concat 成 (batch, num_lane)）
-        """
+        """Accept a (batch, num_lane) tensor or a list of tensors concatenated along the feature axis."""
         if isinstance(x, list):
             flattened = []
             for xi in x:
@@ -101,7 +88,7 @@ class AttendLightNetwork(nn.Module):
         x = self.embed(x.unsqueeze(-1))
         device = x.device
 
-        # 每个 phase：取对应 lane 特征，mean 为 query，做 MHA，得到 (B, 1, embed_dim)
+        # Build one (B, 1, embed_dim) representation per phase.
         phase_feats = []
         for p in range(self.num_phase):
             idx = self.phase_map[p]
@@ -125,10 +112,7 @@ class AttendLightNetwork(nn.Module):
 
 
 class AttendLight(BaseDRL):
-    """
-    AttendLight Agent（迁移自 LLMTSCS）：
-    使用 inlane 观测 + 相位分组双层注意力，与 baseline 框架兼容。
-    """
+    """AttendLight adapter using incoming-lane features and two attention stages."""
 
     def __init__(self, config, env, idx):
         self.pre_init_config = config
@@ -178,8 +162,8 @@ class AttendLight(BaseDRL):
         self.replay_buffer.reset()
 
     def pick_action(self, n_obs, on_training):
-        # 修复：只在相位时间>0且<t_min时保持当前相位，避免初始状态被锁定在phase 0
-        # 如果current_phase_time=0（刚开始），允许根据Q值选择；只有在已经有相位时间积累但还不够t_min时才保持
+        # Enforce minimum green only after the phase clock has started.
+        # At time zero, allow a Q-value decision rather than locking phase zero.
         if self.inter.current_phase_time > 0 and self.inter.current_phase_time < self.t_min:
             return self.current_phase
         obs = n_obs[self.idx]

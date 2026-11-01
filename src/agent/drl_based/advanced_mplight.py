@@ -5,11 +5,7 @@ from utilities.utils import copy_model_params
 
 
 class AdvancedMPLight(BaseDRL):
-    """
-    PyTorch 版 Advanced-MPLight。
-    在 FRAP/MPLight 结构基础上，增大中间表示维度，提高表达能力，
-    保持与现有 TSCEnv / replay_buffer 接口兼容，便于在 baseline 与蒸馏中直接使用。
-    """
+    """Optional wider PyTorch MPLight variant with the existing environment and replay interfaces."""
 
     def __init__(self, config, env, idx):
         super(AdvancedMPLight, self).__init__(config, env, idx)
@@ -38,10 +34,7 @@ class AdvancedMPLight(BaseDRL):
 
 
 class _AdvancedMPLightNetwork(torch.nn.Module):
-    """
-    FRAP 风格网络的“加宽版”：在不改变输入/输出接口的前提下，
-    提高 embedding / hidden / conv 通道数，模仿 Advanced-XLight 中更强的表示能力。
-    """
+    """Wider FRAP-style network with unchanged input and output interfaces."""
 
     def __init__(self, num_lanelink, num_phase, phase_2_passable_lanelink):
         super(_AdvancedMPLightNetwork, self).__init__()
@@ -51,27 +44,27 @@ class _AdvancedMPLightNetwork(torch.nn.Module):
         self.lanelink_2_applicable_phase = phase_2_passable_lanelink.permute(1, 0)  # num_lanelink * num_phase
         self.phase_competition_mask = self._get_phase_competition_mask(phase_2_passable_lanelink)
 
-        # 相比 FRAP: 使用 3 路特征（phase 通道 + pressure + demand），并提高隐藏维度
+        # Embed phase availability, lane-link pressure and lane-link demand.
         self.dim_embedding = 4
         self.dim_hidden_repr = 24
         self.dim_conv_repr = 32
 
-        # 来自当前相位的 “是否可通行” 二值特征
+        # Binary passability under the current phase.
         self.phase_embedding = torch.nn.Sequential(
             torch.nn.Linear(in_features=1, out_features=self.dim_embedding),
             torch.nn.ReLU(),
         )
-        # 来自 lanelink_2_pressure 的压力特征
+        # Lane-link pressure feature.
         self.pressure_embedding = torch.nn.Sequential(
             torch.nn.Linear(in_features=1, out_features=self.dim_embedding),
             torch.nn.ReLU(),
         )
-        # 来自 lanelink_2_num_vehicle 的需求/流量特征
+        # Lane-link vehicle-demand feature.
         self.demand_embedding = torch.nn.Sequential(
             torch.nn.Linear(in_features=1, out_features=self.dim_embedding),
             torch.nn.ReLU(),
         )
-        # 将三路嵌入拼接后映射为 lanelink 表示
+        # Map the concatenated embeddings to lane-link representations.
         self.lanelink_embedding = torch.nn.Sequential(
             torch.nn.Linear(in_features=self.dim_embedding * 3, out_features=self.dim_hidden_repr),
             torch.nn.ReLU(),
@@ -122,7 +115,7 @@ class _AdvancedMPLightNetwork(torch.nn.Module):
         b_pressure = obs[1]
         b_demand = obs[2]
 
-        # 三路嵌入：相位可通行指示 + 压力 + 需求
+        # Embed phase availability, pressure and demand.
         lanelink_phase_emb = self.phase_embedding(
             b_current_passable_lanelink.unsqueeze(-1)
         )  # batch * num_lanelink * dim_embedding
@@ -154,7 +147,7 @@ class _AdvancedMPLightNetwork(torch.nn.Module):
         return q_values
 
     def _get_phase_embedding_cube(self, batch_size, phase_embedding):
-        # dim_hidden_repr * 2 取代 FRAP 中的硬编码 32
+        # Use dim_hidden_repr * 2 instead of FRAP's fixed width of 32.
         cube_channels = self.dim_hidden_repr * 2
         phase_embedding_cube = torch.zeros(
             (batch_size, cube_channels, self.num_phase, self.num_phase - 1),

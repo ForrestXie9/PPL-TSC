@@ -10,11 +10,11 @@ class Phase:
         self.n_available_lanelink_id = []  # type: List[Tuple[str, str]]
         self.n_available_startlane_id = []  # type: List[str]
 
-        for available_roadlink_idx in self.n_available_roadlink_idx:  # 多个不冲突的roadlink, 每个roadlink有多个车道的组合
+        for available_roadlink_idx in self.n_available_roadlink_idx:  # A phase serves compatible road links, each with one or more lane links.
             roadlink = intersection.n_roadlink[available_roadlink_idx]
             self.n_available_lanelink_id.extend(roadlink.n_lanelink_id)
             self.n_available_startlane_id.extend(roadlink.n_startlane_id)
-        self.n_available_startlane_id = list_with_unique_element(self.n_available_startlane_id)  # phase对应的roadlink的所有入射车道
+        self.n_available_startlane_id = list_with_unique_element(self.n_available_startlane_id)  # Unique incoming lanes served by the phase.
 
     def __str__(self):
         return str({

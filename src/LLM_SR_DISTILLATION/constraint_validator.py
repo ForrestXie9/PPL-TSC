@@ -1,10 +1,4 @@
-"""
-约束验证模块
-验证生成的效用函数是否满足边界条件和变化趋势约束
-支持两种验证方式：
-1. 基于训练数据的约束检查
-2. 基于系统测试的表达式验证
-"""
+"""Verify generated utility functions using source observations and synthetic constraint tests."""
 from typing import Dict, Any, Optional, List, Tuple
 import numpy as np
 import ast
@@ -20,8 +14,8 @@ from LLM_SR_DISTILLATION.direction_order_checks import direction_order_consisten
 
 
 class ConstraintValidator:
-    """约束验证器 - 支持多种验证方式"""
-    
+    """Validate utility functions against feature, numerical and behavioral constraints."""
+
     def __init__(
         self,
         teacher_model: str,
@@ -36,20 +30,9 @@ class ConstraintValidator:
         action_mode: str = "phase_argmax",
         binary_min_margin_span: float = 0.0,
     ):
-        """
-        初始化约束验证器
-        
-        Args:
-            teacher_model: teacher模型名称（如 'MPLight', 'FRAP'等）
-            observation_feature_list: 观察特征列表
-            json_file_path: teacher数据JSON文件路径
-            intersection_id: 如果指定，只检查该路口的数据
-            feature_ranges: 特征范围字典 {feature_name: (min, max)}，用于测试验证
-            feature_kinds: 特征类型标记字典
-            actual_feature_keys: 实际存在于数据中的feature keys（从feature_stats提取）
-            data_loader: TeacherDataLoader，用于真实state采样验证（FunctionUtility）
-            feature_stats: 特征统计 {name: {min,max,mean,std}}，用于 compute(state, phase_id, feature_stats)
-        """
+        """Initialize source data, feature ranges/types, available keys and frozen statistics.
+
+        FunctionUtility checks use data_loader observations and feature_stats."""
         self.teacher_model = teacher_model
         self.observation_feature_list = observation_feature_list
         self.json_file_path = json_file_path
@@ -61,8 +44,8 @@ class ConstraintValidator:
         self.feature_stats = feature_stats or {}
         self.action_mode = str(action_mode or "phase_argmax")
         self.binary_min_margin_span = float(binary_min_margin_span)
-        
-        # 初始化测试验证器
+
+
         self.test_validator = ExpressionValidatorTests(
             self.feature_ranges,
             feature_kinds=self.feature_kinds
@@ -293,48 +276,38 @@ class ConstraintValidator:
     def check_numerical_safety(self, function_code: str) -> Dict[str, Any]:
         """Mandatory candidate gate, including when semantic review is disabled."""
         return check_division_safety(function_code)
-    
+
     def _build_default_feature_ranges(self) -> Dict[str, Tuple[float, float]]:
-        """
-        构建默认的特征范围（原始范围，未归一化）
-        实际归一化由 FeatureExtractor 对 phase_features 的 _norm 字段执行；
-        未见目标样本可能超出源场景的 [0,1] 范围。
-        """
+        """Build default raw feature ranges for legacy expression tests.
+
+        Generated functions choose their own normalization; these bounds do not
+        enforce normalization or constrain unseen target observations."""
         return {
-            'phase_active': (0.0, 1.0),            # Current phase indicator (已是 0 或 1)
-            'pressure_norm': (0.0, 500.0),         # 原始：Pressure or num_vehicles
-            'vehicles_norm': (0.0, 500.0),         # 原始：Num_vehicles
-            'waiting_veh_norm': (0.0, 1000.0),     # 原始：Num_waiting_vehicles
-            'waiting_time_norm': (0.0, 5000.0),    # 原始：Waiting time
+            'phase_active': (0.0, 1.0),
+            'pressure_norm': (0.0, 500.0),
+            'vehicles_norm': (0.0, 500.0),
+            'waiting_veh_norm': (0.0, 1000.0),
+            'waiting_time_norm': (0.0, 5000.0),
         }
-    
+
     def _build_default_feature_kinds(self) -> Dict[str, str]:
-        """构建默认的特征类型标记"""
+        """Mark discrete and continuous features for synthetic tests."""
         return {
-            'phase_active': 'current_phase',         # 离散：只能是 0 或 1
+            'phase_active': 'current_phase',
             'pressure_norm': 'pressure_sum',
             'vehicles_norm': 'num_vehicle_sum',
             'waiting_veh_norm': 'num_waiting_vehicle_sum',
             'waiting_time_norm': 'waiting_time_sum',
         }
-    
+
     def check_feature_key_constraints(self, function_code: str) -> Dict[str, Any]:
-        """
-        检查生成的函数代码中使用的feature keys是否都在actual_feature_keys中存在。
-        这确保生成的函数不会尝试访问数据中不存在的keys。
-        
-        Args:
-            function_code: 生成的Python函数代码
-        
-        Returns:
-            {'valid': bool, 'violations': List[str], 'message': str}
-        """
+        """Check generated feature accesses against the keys actually present in source data."""
         violations = []
-        
-        # 如果没有实际的feature keys列表，跳过这个检查
+
+
         if not self.actual_feature_keys:
             return {'valid': True, 'violations': [], 'message': 'No actual_feature_keys provided for validation'}
-        
+
         # Statistics and raw feature fields have different namespaces. Mask
         # only proven AST reads, preserving checks on raw fields with the same name.
         from LLM_SR_DISTILLATION.statistics_namespace import mask_statistic_keys
@@ -345,21 +318,21 @@ class ConstraintValidator:
                     'message': 'Cannot inspect feature/statistic namespaces'}
         violations.extend(statistics_violations)
 
-        # 检查常见的非法key访问模式
-        # 需要检查的非法keys：queue_length, delay, num_waiting_time（应该是waiting_time）等
+
+        # Reject unsupported feature aliases, including queue_length and delay.
         illegal_key_patterns = [
             'queue_length',
             'delay',
             'queue',
-            'num_waiting_time',  # 应该是 waiting_time
+            'num_waiting_time',  # The supported name is waiting_time.
             'vehicle_delay',
             'queue_len',
         ]
-        
-        # 检查代码中是否出现这些非法的key访问
+
+
         import re
         for illegal_key in illegal_key_patterns:
-            # 匹配 .get('illegal_key') 或 .get('illegal_key', 0.0) 或 ["illegal_key"] 或 ['illegal_key']
+
             patterns = [
                 rf"\.get\(['\"]({illegal_key})['\"]\s*(?:,\s*[^)]+)?\)",
                 rf"\[['\"]{illegal_key}['\"]",
@@ -372,12 +345,12 @@ class ConstraintValidator:
                         f"Actual available keys: {self.actual_feature_keys}"
                     )
                     break
-        
-        # 检查代码中引用的feature keys是否在actual_feature_keys中
-        # 提取 .get('key') 或 .get('key', default) 或 fbd['key'] 的key
+
+
+
         key_pattern = r"\.get\(['\"]([^'\"]+)['\"]\s*(?:,\s*[^)]+)?\)|\[['\"](\w+)['\"]\]"
         matches = re.findall(key_pattern, function_code)
-        
+
         # matches is a list of tuples like [('pressure', ''), ('', 'num_vehicle')]
         used_keys = set()
         # Keys used in feature_stats (normalization dict), not state/features_by_direction
@@ -392,8 +365,8 @@ class ConstraintValidator:
             key = match[0] if match[0] else match[1]
             if key and key not in allowed_non_feature_keys:
                 used_keys.add(key)
-        
-        # 检查used_keys是否都在actual_feature_keys中（跳过已在 illegal 中报告的 key）
+
+
         illegal_set = set(illegal_key_patterns)
         for used_key in used_keys:
             if used_key in illegal_set:
@@ -403,14 +376,14 @@ class ConstraintValidator:
                     f"Function tries to access feature key '{used_key}' which doesn't exist in actual data. "
                     f"Actual available keys: {self.actual_feature_keys}"
                 )
-        
+
         # Deduplicate by message (illegal and used_keys can produce similar messages for same key)
         seen = set()
         violations = [v for v in violations if v not in seen and not seen.add(v)]
-        
+
         valid = len(violations) == 0
         message = 'Feature key constraints satisfied' if valid else f'{len(violations)} violations detected'
-        
+
         return {
             'valid': valid,
             'violations': violations,
@@ -459,42 +432,32 @@ class ConstraintValidator:
         return {'valid': not violations, 'violations': violations,
                 'message': 'Feature statistics keys valid' if not violations else 'Unknown feature statistics key',
                 'used_keys': sorted(used), 'available_keys': sorted(available)}
-    
-    # 以下方法已不再使用（只保留系统测试）
-    # 原来的 validate() 和 check_parameter_constraints() 可删除
-    
+
+    # Legacy parameter helpers retained for compatibility.
+
+
     def validate_with_tests(
         self,
         utility_function: Any,
         test_parameters: Dict[str, float],
         verbose: bool = False
     ) -> Dict[str, Any]:
-        """
-        使用系统测试进行表达式验证（使用固定测试参数）
-        
-        Args:
-            utility_function: 编译好的效用函数对象
-            test_parameters: 测试用参数（固定为1.0）
-            verbose: 是否打印详细信息
-        
-        Returns:
-            测试验证结果字典
-        """
+        """Run expression tests with the fixed test parameter values and return their report."""
         try:
-            # run_all_tests() 返回包含 test_results 的字典
+
             results = self.test_validator.run_all_tests(
                 utility_function=utility_function,
                 parameters=test_parameters,
                 verbose=verbose
             )
-            
-            return results  # 直接返回，包含 valid, test_results, total_violations, message
-            
+
+            return results
+
         except Exception as e:
             return {
                 'valid': False,
                 'test_results': {},
-                'total_violations': 4,  # 4个测试
+                'total_violations': 4,  # Four expression tests.
                 'message': f'Test execution failed: {str(e)}'
             }
 
@@ -503,17 +466,14 @@ class ConstraintValidator:
         utility_function: Any,
         n_samples: int = 3
     ) -> List[Dict[str, float]]:
-        """
-        生成多组正数参数用于结构验证（不依赖优化结果）
-        包括极端情况：很小、很大的参数值
-        """
+        """Build reproducible positive parameter probes, including small and large values."""
         parameter_bounds = utility_function.get_parameter_bounds()
         if not parameter_bounds:
             return [{}]
 
         test_params_list = []
-        
-        # 1) 全1参数（会裁剪到边界）
+
+
         ones_params: Dict[str, float] = {}
         for name, (lower, upper) in parameter_bounds.items():
             val = 1.0
@@ -524,7 +484,7 @@ class ConstraintValidator:
             ones_params[name] = float(val)
         test_params_list.append(ones_params)
 
-        # 2) 中点参数
+
         mid_params: Dict[str, float] = {}
         for name, (lower, upper) in parameter_bounds.items():
             if lower is None or upper is None:
@@ -533,29 +493,29 @@ class ConstraintValidator:
                 mid_params[name] = float((lower + upper) / 2.0)
         test_params_list.append(mid_params)
 
-        # 3) 极端参数：很小的值（接近0的非零值）
-        # 这很重要，因为有些表达式（如 sqrt(x) * a）在 a 很小时可能产生数值问题
+
+
         tiny_params: Dict[str, float] = {}
         for name, (lower, upper) in parameter_bounds.items():
             if lower is None or upper is None:
                 tiny_params[name] = 0.01
             else:
-                # 使用参数范围的 1% 作为"很小"的值
+
                 tiny_params[name] = float(max(0.01, (lower + upper) / 200.0))
         test_params_list.append(tiny_params)
 
-        # 4) 极端参数：很大的值
-        # 这也很重要，因为大参数可能导致溢出或其他数值问题
+
+
         large_params: Dict[str, float] = {}
         for name, (lower, upper) in parameter_bounds.items():
             if lower is None or upper is None:
                 large_params[name] = 100.0
             else:
-                # 使用参数范围的上界附近的大值
+
                 large_params[name] = float(upper * 0.9) if upper else 100.0
         test_params_list.append(large_params)
 
-        # 5) 随机正数参数（可重复）
+
         rng = np.random.default_rng(42)
         for _ in range(max(0, n_samples - 4)):
             rand_params: Dict[str, float] = {}
@@ -567,7 +527,7 @@ class ConstraintValidator:
             test_params_list.append(rand_params)
 
         return test_params_list
-    
+
     def _validate_on_real_states(
         self,
         utility_function: Any,
@@ -723,10 +683,7 @@ class ConstraintValidator:
         max_samples: int = 15,
         verbose: bool = False,
     ) -> Tuple[bool, List[str]]:
-        """
-        对 FunctionUtility 做边界/极值测试：构造 all_zero、all_max、mixed 等合成 state，
-        确保 compute() 不崩溃、返回有限值。用于发现 div-by-zero、NaN 等。
-        """
+        """Evaluate zero, maximum and mixed boundary states to detect exceptions and nonfinite results."""
         if self.action_mode == "binary_keep_switch":
             return self._check_binary_boundary_extreme(
                 utility_function,
@@ -741,7 +698,7 @@ class ConstraintValidator:
         if not keys:
             return True, []
 
-        # 从真实数据取一个模板 state 以获取结构
+
         template_state = None
         template_phase_id = 0
         for inter_id in sorted(self.data_loader.intersection_ids)[:2]:
@@ -763,7 +720,7 @@ class ConstraintValidator:
 
         fbd = template_state.get("features_by_direction", {})
         controlled = template_state.get("controlled_directions", []) or list(fbd.keys())
-        # 为每个 key 取合理范围
+
         max_vals = {}
         for k in keys:
             stat = self.feature_stats.get(k, {})
@@ -780,13 +737,13 @@ class ConstraintValidator:
                     out[d]['waiting_time'] = out[d]['sum_waiting_time'] = value
             return out
 
-        # 边界/极值用例
+
         cases = [
             ("all_zero", {k: 0.0 for k in keys}),
             ("all_max", {k: max_vals.get(k, 1.0) for k in keys}),
             ("mixed_half", {k: max_vals.get(k, 1.0) * 0.5 for k in keys}),
         ]
-        for i, k in enumerate(keys[:5]):  # 单特征极值
+        for i, k in enumerate(keys[:5]):
             c = {x: 0.0 for x in keys}
             c[k] = max_vals.get(k, 1.0)
             cases.append((f"only_{k}_max", c))
@@ -1058,17 +1015,7 @@ class ConstraintValidator:
         utility_function: Any,
         verbose: bool = False
     ) -> Dict[str, Any]:
-        """
-        验证表达式结构合理性（不依赖具体参数值）
-        
-        Args:
-            expression_template: 效用函数表达式模板
-            utility_function: 编译好的效用函数对象
-            verbose: 是否打印详细信息
-        
-        Returns:
-            验证结果 - 4项约束条件的检查结果
-        """
+        """Validate expression structure using feature, boundary and monotonicity checks."""
         from .policy_identity import check_process_identity
         identity = check_process_identity(expression_template)
         if not identity['valid']:
@@ -1112,15 +1059,15 @@ class ConstraintValidator:
                 'violations': violations,
                 'message': f'Invalid - Feature key constraint violated: {violations[0] if violations else "Unknown"}'
             }
-        
+
         if verbose and self.actual_feature_keys:
             print(f"  [OK] Feature key constraint satisfied (uses keys from: {feature_key_check.get('used_keys', [])})")
 
         constraints = {'numerical_safety': {'name': 'Numerical safety',
                        'description': 'Explicit nonzero denominator guards',
                        'satisfied': True, 'details': numeric}}
-        # 凡实现了 compute(state, phase_id, feature_stats) 且具备 data_loader+feature_stats 的控制器，
-        # 均走与 LLM（FunctionUtility）相同的真实 state 单调性检查，保证对比方法与 LLM 同一套物理语义约束
+        # Controllers exposing compute(state, phase_id, feature_stats) use the same source-state checks.
+        # Apply the same physical feature semantics to baseline and LLM controllers.
         has_compute = callable(getattr(utility_function, "compute", None))
         has_data = bool(self.data_loader and self.feature_stats)
         full_source=None
@@ -1142,7 +1089,7 @@ class ConstraintValidator:
                         'constraints': {**constraints, 'real_state': {'name': 'Real-state and boundary execution',
                             'satisfied': False, 'violations': runtime_violations,
                             'details': {'violations': runtime_violations}}}}
-            # ==== 与 LLM 相同的单调性检查：在真实 teacher state 上做弱单调性 ====
+            # Check weak monotonicity using real teacher observations.
             mono_valid, mono_violations = self._check_monotonicity_function_utility(
                 utility_function, max_samples=100, max_feature_checks=256, verbose=verbose
             )
@@ -1221,32 +1168,32 @@ class ConstraintValidator:
                     validation.get('test_results', {}).get(test_key, {})
                     for validation in test_validations
                 ]
-            
+
             constraints['monotonicity'] = {
                 'name': 'Monotonicity',
                 'description': 'Each feature increase should not decrease Q',
                 'satisfied': _passed_for('monotonicity'),
                 'details': _details_for('monotonicity')
             }
-            
+
             constraints['boundary'] = {
                 'name': 'Boundary conditions',
                 'description': 'Q must be finite for all_zero, all_min, all_max, mixed_extreme',
                 'satisfied': _passed_for('boundary'),
                 'details': _details_for('boundary')
             }
-            
+
             constraints['extreme'] = {
                 'name': 'Extreme values',
                 'description': 'Q must be finite when a single feature is at its extreme',
                 'satisfied': _passed_for('extreme'),
                 'details': _details_for('extreme')
             }
-        
-        # 综合判定：3项都通过才有效
+
+        # Require every applicable constraint to pass.
         valid = all(c['satisfied'] for c in constraints.values())
-        
-        # 收集所有未满足的约束
+
+
         violations = []
         for constraint in constraints.values():
             if constraint['satisfied']:
@@ -1255,12 +1202,11 @@ class ConstraintValidator:
             details = constraint.get('details', [])
             if isinstance(details, list):
                 violations.extend(detail for detail in details if isinstance(detail, str))
-        
+
         return {
             'valid': valid,
             'score': 1.0 if valid else 0.0,
-            'constraints': constraints,  # 4项约束的详细信息
-            'violations': violations,  # 违反的约束列表
+            'constraints': constraints,  # Detailed constraint reports.
+            'violations': violations,  # Failed constraints.
             'message': f'Valid - all constraints satisfied' if valid else f'Invalid - violations: {", ".join([c["name"] for c in constraints.values() if not c["satisfied"]])}'
         }
-    # _compute_validation_score 已删除（改为纯二元判定）

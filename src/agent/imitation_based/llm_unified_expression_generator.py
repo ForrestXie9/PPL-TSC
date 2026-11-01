@@ -1,7 +1,4 @@
-"""
-使用大语言模型生成统一的Q值符号表达式模板
-该模板将用于所有phase，每个phase通过不同的系数进行标定
-"""
+"""Generate a shared symbolic Q-value template with separately fitted per-phase coefficients."""
 import re
 from typing import Tuple, Optional, List, Dict
 from agent.imitation_based.llm_integration import run_llm
@@ -17,10 +14,10 @@ def build_unified_q_value_prompt(
     num_phase: int,
     agent_name: str = "RL Agent"
 ) -> str:
-    """构建统一Q值表达式模板的提示词"""
-    
+    """Build an LLM prompt for a unified Q-value expression template."""
+
     feature_text = format_features_for_prompt(feature_names, feature_descriptions)
-    
+
     return f"""
 You are a reinforcement learning expert tasked with creating a UNIVERSAL symbolic expression template for Q-value prediction in traffic signal control.
 
@@ -89,48 +86,48 @@ Output:
 
 
 def parse_unified_llm_response(response: str) -> Tuple[Optional[str], Optional[str]]:
-    """解析LLM响应，提取统一表达式模板和解释"""
-    
-    # 提取表达式 - 尝试多种模式
+    """Extract the unified expression template and explanation from an LLM response."""
+
+
     patterns = [
         r'### Expression\s*\n\s*Q\s*=\s*(.+?)(?:\n|###|$)',
         r'Q\s*=\s*(.+?)(?:\n|###|$)',
     ]
-    
+
     expression = None
     for pattern in patterns:
         expr_match = re.search(pattern, response, re.DOTALL | re.IGNORECASE)
         if expr_match:
             expression = expr_match.group(1).strip()
             break
-    
+
     if expression is None:
         return None, None
-    
-    # 清理表达式
+
+
     expression = re.sub(r'```.*?```', '', expression, flags=re.DOTALL)
     expression = expression.split('\n')[0].strip()
     expression = expression.replace('```', '').replace('`', '').strip()
-    
-    # 移除可能的注释
+
+
     expression = re.sub(r'#.*$', '', expression, flags=re.MULTILINE).strip()
-    
-    # 提取解释
+
+
     expl_patterns = [
         r'### Explanation\s*\n\s*(.+?)(?:###|$)',
         r'Explanation\s*:\s*(.+?)(?:###|$)',
     ]
-    
+
     explanation = None
     for pattern in expl_patterns:
         expl_match = re.search(pattern, response, re.DOTALL | re.IGNORECASE)
         if expl_match:
             explanation = expl_match.group(1).strip()
             break
-    
+
     if explanation is None:
         explanation = "No explanation provided"
-    
+
     return expression, explanation
 
 
@@ -144,31 +141,16 @@ def generate_unified_q_expression_template(
     api_key: Optional[str] = None,
     model: Optional[str] = None
 ) -> Tuple[str, str]:
-    """
-    使用LLM生成统一的Q值表达式模板
-    
-    Args:
-        feature_names: 特征名列表
-        feature_descriptions: 特征描述字典
-        num_phase: Phase总数
-        agent_name: Agent名称
-        max_retries: 最大重试次数
-        api_endpoint: LLM API端点
-        api_key: LLM API密钥
-        model: LLM模型名称
-    
-    Returns:
-        (expression_template, explanation) 元组
-    """
-    
+    """Generate a unified Q-value template for the supplied features, phase count and agent."""
+
     for attempt in range(max_retries):
         try:
-            # 构建提示词
+
             prompt = build_unified_q_value_prompt(
                 feature_names, feature_descriptions, num_phase, agent_name
             )
-            
-            # 调用LLM
+
+
             response = run_llm(
                 prompt,
                 api_endpoint=api_endpoint,
@@ -176,10 +158,10 @@ def generate_unified_q_expression_template(
                 model=model,
                 max_retries=3
             )
-            
-            # 解析响应
+
+
             expression, explanation = parse_unified_llm_response(response)
-            
+
             if expression is None:
                 print(f"  Attempt {attempt + 1}: Failed to parse LLM response")
                 if max_retries > 1:
@@ -191,29 +173,29 @@ def generate_unified_q_expression_template(
             if any(re.search(rf'\b{tok}\b', expression) for tok in forbidden_tokens):
                 print(f"  Attempt {attempt + 1}: Expression contains forbidden operators")
                 continue
-            
-            # 基本验证
-            if len(expression) < 5:  # 表达式太短
+
+
+            if len(expression) < 5:
                 print(f"  Attempt {attempt + 1}: Expression too short: {expression}")
                 continue
-            
-            # 检查是否包含系数
+
+
             if not any(coef in expression for coef in ['a1', 'a2', 'a3', 'a4', 'a5']):
                 print(f"  Attempt {attempt + 1}: Expression missing coefficients")
                 continue
-            
-            # 检查是否包含phase_idx占位符
+
+
             if 'phase_idx' not in expression:
                 print(f"  Attempt {attempt + 1}: Expression missing phase_idx placeholder")
-                # 警告但不失败，可以后续手动添加
+
                 print(f"  Warning: Expression does not contain phase_idx, will add phase-specific terms automatically")
-            
+
             return expression, explanation
-            
+
         except Exception as e:
             print(f"  Attempt {attempt + 1} failed: {e}")
             if attempt == max_retries - 1:
                 raise
-    
+
     raise RuntimeError(f"Failed to generate valid unified expression template after {max_retries} attempts")
 
