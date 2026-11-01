@@ -1,0 +1,62 @@
+{
+  "status": "passed",
+  "API_calls": 0,
+  "unit_tests_passed": 62,
+  "new_tests": 7,
+  "findings": [
+    {
+      "issue": "Resume could treat outputs from changed configuration or inputs as complete",
+      "fix": "Before real execution persist run identity covering config, source tree, trajectory and topology/flow hashes; reject mismatches and unrecorded legacy result directories"
+    },
+    {
+      "issue": "Concurrent tasks could write the same result directory",
+      "fix": "Nonblocking exclusive directory lock, released on success or exception"
+    },
+    {
+      "issue": "Completion check did not verify formula, offsets and run configuration agree across artifacts",
+      "fix": "Check those fields alongside metrics and executable policy export"
+    },
+    {
+      "issue": "Independent search seeds in a sequential matrix could resolve to the same result path",
+      "fix": "Reject colliding entries before search; use separate result directories"
+    },
+    {
+      "issue": "Accepted teacher_data manifest alias was not supported in resume path calculation",
+      "fix": "Resolve both supported field names identically"
+    }
+  ],
+  "integration": {
+    "status": "passed",
+    "fixture_calls": 25,
+    "additional_calls_on_resume": 0,
+    "API_calls": 0
+  },
+  "integration_scope": {
+    "teacher": "MPLight",
+    "scenario": "Hangzhou1",
+    "flow": 0,
+    "population": 5,
+    "generations": 5,
+    "calibration_population": 20,
+    "calibration_max_iterations": 20,
+    "LLM": "deterministic fixture responses; HTTP disabled",
+    "real_components": [
+      "source preparation",
+      "verifier",
+      "CMA-ES",
+      "CityFlow",
+      "ABF and capped CP",
+      "selection",
+      "export",
+      "matrix resume"
+    ]
+  },
+  "existing_six_variant_artifact_consistency": "passed",
+  "method_changed": false,
+  "limitations": [
+    "No real paid-provider calls or broad performance claims.",
+    "The new identity guard deliberately refuses legacy outputs without identity metadata; preserve those results and start a new output directory.",
+    "Input identity binds paths as well as hashes; relocated experimental outputs may require a fresh output directory.",
+    "Finite testing cannot prove absence of all software bugs or universal traffic safety."
+  ]
+}

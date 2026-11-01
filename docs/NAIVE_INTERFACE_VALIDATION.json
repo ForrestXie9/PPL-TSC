@@ -1,0 +1,35 @@
+{
+  "status": "passed",
+  "variant": "EcoLight-naive",
+  "action_mode": "keep_switch",
+  "unit_tests_passed": 79,
+  "API_calls": 0,
+  "checks": [
+    {
+      "scenario": "Hangzhou1",
+      "action_mode": "keep_switch",
+      "fixture": {
+        "status": "passed",
+        "API_calls": 0,
+        "fixture_calls": 25
+      },
+      "source_replay_ATT_difference": 0.0,
+      "cross_flow_status": "complete",
+      "constraints_satisfied": true
+    },
+    {
+      "scenario": "Atlanta",
+      "action_mode": "keep_switch",
+      "fixture": {
+        "status": "passed",
+        "API_calls": 0,
+        "fixture_calls": 25
+      },
+      "source_replay_ATT_difference": 0.0,
+      "cross_flow_status": "complete",
+      "constraints_satisfied": true
+    }
+  ],
+  "scope": "Real source trajectories and simulator, fixed candidate text; integration verification only, not LLM performance evidence. Initial v1 attempt exposed missing keep_switch prompt support; fixed and retested in v2.",
+  "other_interfaces": "EcoLight-native and EcoLight-phase-selection remain separate and unchanged."
+}

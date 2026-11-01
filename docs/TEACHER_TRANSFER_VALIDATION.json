@@ -1,0 +1,123 @@
+{
+  "status": "passed_with_expected_incompatibility",
+  "note": "Temporary checkpoints trained for 2 episodes; validates interfaces, not teacher quality. 12 complete rollouts and one expected CoLight shape rejection.",
+  "rows": [
+    {
+      "teacher": "FRAP",
+      "target": "Hangzhou1",
+      "protocol": "same_network",
+      "returncode": 0,
+      "status": "complete",
+      "error": null,
+      "ATT": 135.6621480709072
+    },
+    {
+      "teacher": "EcoLight",
+      "target": "Hangzhou1",
+      "protocol": "same_network",
+      "returncode": 0,
+      "status": "complete",
+      "error": null,
+      "ATT": 280.62773722627736
+    },
+    {
+      "teacher": "MPLight",
+      "target": "Hangzhou1",
+      "protocol": "same_network",
+      "returncode": 0,
+      "status": "complete",
+      "error": null,
+      "ATT": 261.57455683003127
+    },
+    {
+      "teacher": "CoLight",
+      "target": "Hangzhou1",
+      "protocol": "same_network",
+      "returncode": 0,
+      "status": "complete",
+      "error": null,
+      "ATT": 557.4692387904066
+    },
+    {
+      "teacher": "TinyLight",
+      "target": "Hangzhou1",
+      "protocol": "same_network",
+      "returncode": 0,
+      "status": "complete",
+      "error": null,
+      "ATT": 870.096976016684
+    },
+    {
+      "teacher": "FRAP",
+      "target": "Hangzhou2",
+      "protocol": "source_agent0",
+      "returncode": 0,
+      "status": "complete",
+      "error": null,
+      "ATT": 122.4450587422253
+    },
+    {
+      "teacher": "EcoLight",
+      "target": "Hangzhou2",
+      "protocol": "source_agent0",
+      "returncode": 0,
+      "status": "complete",
+      "error": null,
+      "ATT": 136.61644782308224
+    },
+    {
+      "teacher": "MPLight",
+      "target": "Hangzhou2",
+      "protocol": "source_agent0",
+      "returncode": 0,
+      "status": "complete",
+      "error": null,
+      "ATT": 122.79198341395991
+    },
+    {
+      "teacher": "CoLight",
+      "target": "Hangzhou2",
+      "protocol": "source_agent0",
+      "returncode": 0,
+      "status": "complete",
+      "error": null,
+      "ATT": 1017.0490670352453
+    },
+    {
+      "teacher": "FRAP",
+      "target": "Atlanta",
+      "protocol": "source_agent0",
+      "returncode": 0,
+      "status": "complete",
+      "error": null,
+      "ATT": 249.04953271028037
+    },
+    {
+      "teacher": "EcoLight",
+      "target": "Atlanta",
+      "protocol": "source_agent0",
+      "returncode": 0,
+      "status": "complete",
+      "error": null,
+      "ATT": 295.54626168224297
+    },
+    {
+      "teacher": "MPLight",
+      "target": "Atlanta",
+      "protocol": "source_agent0",
+      "returncode": 0,
+      "status": "complete",
+      "error": null,
+      "ATT": 237.82056074766356
+    },
+    {
+      "teacher": "CoLight",
+      "target": "Atlanta",
+      "protocol": "source_agent0",
+      "returncode": 1,
+      "status": "failed",
+      "error": "Target intersection 0: incompatible tensor shapes: {'embedding_mlp.0.weight': {'source': [32, 22], 'target': [32, 15]}, 'tailing_net.2.weight': {'source': [6, 32], 'target': [5, 32]}, 'tailing_net.2.bias': {'source': [6], 'target': [5]}}",
+      "ATT": null
+    }
+  ]
+}

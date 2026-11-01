@@ -1,0 +1,48 @@
+{
+  "experiment": {
+    "name": "TinyLight__Hangzhou1__flow0",
+    "output_dir": "outputs/TinyLight",
+    "random_seed": 2026103101
+  },
+  "data": {
+    "teacher_model": "TinyLight",
+    "teacher_data": "outputs/trajectories/TinyLight_Hangzhou1_flow0.jsonl.gz",
+    "traffic_config": "configs/traffic_current.json"
+  },
+  "llm": {
+    "provider": "openai_compatible",
+    "endpoint": "api.n1n.ai",
+    "request_path": "/v1/chat/completions",
+    "model": "gemini-3.1-flash-lite",
+    "api_key_env": "LLM_API_KEY",
+    "temperature": 0.8,
+    "cache_mode": "readwrite",
+    "cache_dir": "outputs/TinyLight/llm_cache",
+    "auth_mode": "bearer",
+    "cache_key_mode": "call_sequence"
+  },
+  "search": {
+    "population_size": 5,
+    "generations": 5,
+    "mutation_rate": 1.0,
+    "constraint_retries": 3,
+    "max_initial_attempts": 30,
+    "fit_phase_bias": true,
+    "bias_fit_iterations": 20,
+    "bias_bound": 0.5,
+    "slot_based_parent": true,
+    "action_mode": "phase_argmax"
+  },
+  "evaluation": {
+    "score_mode": "action_plus_perf",
+    "action_weight": 1.0,
+    "performance_weight": 1.0,
+    "max_timesteps": null,
+    "simulation_steps": null,
+    "simulation_seed": 992832
+  },
+  "method": {
+    "profile": "full_100_256_v1",
+    "prompt_template": "paper_figure_a2_v1"
+  }
+}
