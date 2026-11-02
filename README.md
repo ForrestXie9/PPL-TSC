@@ -41,14 +41,6 @@ Each source intersection and physical phase has an offset in [-0.5, 0.5].
 
 ### EcoLight
 
-All three student variants use `--teacher EcoLight`.
-**EcoLight-original** retains the earlier phase-feature interface: score the current
-phase and its cyclic successor using their directional vehicle features.
-**EcoLight-native** uses EcoLight's exact green/red lane vehicle totals to score
-KEEP and SWITCH on the same state. Both advance only to the cyclic next phase.
-**EcoLight-phase-selection** scores all candidate phases and selects the highest.
-Choose the interface with `--variant`; the example below uses `EcoLight-original`.
-
 ```bash
 python train_teacher.py --teacher EcoLight --scenario Hangzhou1 --flow 0 --output-dir outputs/EcoLight/teacher
 python collect_teacher.py --teacher EcoLight --scenario Hangzhou1 --flow 0 --checkpoint outputs/EcoLight/teacher/checkpoint.pth --output outputs/EcoLight/trajectory.jsonl.gz
