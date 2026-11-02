@@ -39,14 +39,6 @@ Configuration templates are in `configs/examples/`; all commands share `configs/
 The default fitness is ABF + exp(min(Delta, 0)), where Delta is relative ATT improvement.
 Each source intersection and physical phase has an offset in [-0.5, 0.5].
 
-### EcoLight
-
-```bash
-python train_teacher.py --teacher EcoLight --scenario Hangzhou1 --flow 0 --output-dir outputs/EcoLight/teacher
-python collect_teacher.py --teacher EcoLight --scenario Hangzhou1 --flow 0 --checkpoint outputs/EcoLight/teacher/checkpoint.pth --output outputs/EcoLight/trajectory.jsonl.gz
-python scripts/prepare_distillation.py --variant EcoLight-original --trajectory outputs/EcoLight/trajectory.jsonl.gz --output-dir outputs/EcoLight/student
-python run.py --config outputs/EcoLight/student/config.json
-```
 
 ## Evaluate
 
