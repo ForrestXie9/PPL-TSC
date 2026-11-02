@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import List
 from utilities.utils import list_with_unique_element
 
 

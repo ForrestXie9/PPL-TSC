@@ -58,8 +58,6 @@ class Intersection:
             if len(phase_dict['availableRoadLinks']) > 0:
                 self.n_phase.append(Phase(phase_idx, phase_dict, self))
 
-        phase_num_roadlink = [len(i.n_available_roadlink_idx) for i in self.n_phase]
-
         self.n_neighbor_idx = [self.inter_idx]  # this will be determined in TSCEnv once all intersections are scanned
         self.phase_2_passable_lane_idx = self._get_phase_2_passable_lane_idx()
         self.phase_2_passable_lanelink_idx = self._get_phase_2_passable_lanelink_idx()
