@@ -555,6 +555,8 @@ def _build_internal_argv(
         run_mode, rollout_entries = _teacher_rollout_entries(teacher_manifest)
         artifact_keys = set()
         for index, entry in enumerate(rollout_entries):
+            from ppl_tsc.config import source_run_settings
+            entry = source_run_settings(entry, method_profile=config.get("method", {}).get("profile"))
             rollout_path, teacher, dataset, flow_idx = _validate_rollout_entry(
                 entry,
                 label=f"Teacher manifest entry {index}",

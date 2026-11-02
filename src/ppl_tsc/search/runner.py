@@ -858,6 +858,8 @@ def main(argv=None, *, method_profile="custom"):
         )
         failures = []
         for idx, run_cfg in enumerate(teacher_runs):
+            from ppl_tsc.config import source_run_settings
+            run_cfg = source_run_settings(run_cfg, method_profile=args.method_profile)
             teacher_data_path = run_cfg.get("teacher_data_path")
             teacher_model = run_cfg.get("teacher_model")
             teacher_delay = run_cfg.get("teacher_delay")
@@ -882,16 +884,10 @@ def main(argv=None, *, method_profile="custom"):
                     llm_api_key=llm_api_key,
                     llm_model=llm_model,
                     scenario=scenario,
-                    simulation_seed_override=run_cfg.get(
-                        "simulation_seed",
-                        run_cfg.get("sim_seed"),
-                    ),
+                    simulation_seed_override=run_cfg["simulation_seed"],
                     random_seed_override=run_cfg.get("random_seed"),
                     derive_seed_from_rollout=True,
-                    time_budget_seconds_override=run_cfg.get(
-                        "search_time_budget_seconds",
-                        run_cfg.get("time_budget_seconds"),
-                    ),
+                    time_budget_seconds_override=run_cfg["search_time_budget_seconds"],
                 )
             except Exception as e:
                 if not args.continue_on_error:

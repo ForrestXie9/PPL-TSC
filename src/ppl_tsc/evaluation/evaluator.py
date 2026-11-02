@@ -39,6 +39,15 @@ class Evaluator:
             simulator: StudentSimulator instance (optional)
             epsilon: Small constant to avoid numerical instability
         """
+        try:
+            teacher_travel_time = float(teacher_travel_time)
+            epsilon = float(epsilon)
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise ValueError("Teacher ATT and epsilon must be finite positive numbers") from exc
+        if not np.isfinite(teacher_travel_time) or teacher_travel_time <= 0:
+            raise ValueError("Teacher ATT must be finite and positive")
+        if not np.isfinite(epsilon) or epsilon <= 0:
+            raise ValueError("epsilon must be finite and positive")
         self.data_loader = data_loader
         self.teacher_travel_time = teacher_travel_time
         self.feature_extractor = feature_extractor
