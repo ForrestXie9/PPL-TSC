@@ -139,7 +139,7 @@ def load_teacher_agents(
             f"{checkpoint_path}"
         )
     if checkpoint.get('parameter_sharing') is True or 'shared_local' in checkpoint:
-        raise ValueError('Experimental Shared checkpoints are not accepted by the original-family loader')
+        raise ValueError('Shared-architecture checkpoints do not match the original teacher implementation')
     agent_class = get_agent(config["cur_agent"])
     agents: list[Any] = []
     if config["cur_agent"] in {"CoLight", "MPLight"}:

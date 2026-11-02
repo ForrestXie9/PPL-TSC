@@ -2,7 +2,6 @@
 
 import copy, math
 
-MARKER = "SOURCE JOINT RESPONSE FEEDBACK v1"
 
 
 def inspect_response(utility, states, stats, bias):

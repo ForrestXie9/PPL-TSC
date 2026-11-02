@@ -121,8 +121,7 @@ class Evolution:
         self.current_generation_index: int = 0
         # A deterministic function receives the same calibration and CityFlow
         # result within one scenario. Keep population and offspring entries
-        # separate because the legacy paths intentionally store different
-        # metric detail.
+        # separate because their stored metric detail differs.
         self._evaluation_cache: Dict[Tuple[str, str], Dict[str, Any]] = {}
         # Raw evaluator output has one schema in both paths. Sharing it across
         # those paths avoids recalibrating and resimulating an offspring when
@@ -572,7 +571,7 @@ class Evolution:
     ) -> None:
         """Generate and evaluate initial candidates one at a time.
 
-        The legacy initializer first generates the entire population and only
+        Fixed-budget initialization generates the entire population and only
         then evaluates it.  Under a time budget that would make the boundary
         ambiguous and could spend the whole budget on unevaluated LLM output.
         This path reserves one complete candidate at a time and is used only

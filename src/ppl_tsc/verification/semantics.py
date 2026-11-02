@@ -23,7 +23,7 @@ STATS_KEYS = dict(
 
 def contract_text(binary=False):
     scale_text = ", ".join(f"{a:g}" for a in SCALES)
-    common = f"""EXECUTABLE VERIFIER CONTRACT v1:
+    common = f"""EXECUTABLE VERIFIER CONTRACT:
 - Sampled mathematical coordinate checks, not causal traffic simulations or an all-state proof. Utilities and binary preference differences must be finite; comparison tolerance is {TOLERANCE:g}.
 - Positive source inputs use scales [{scale_text}]. Zero inputs use a nonnegative source-reference grid (unit fallback if the source maximum is zero). An empty test set is not a pass.
 - Across source-derived equal-status traffic probes the program must show at least one demand-dependent phase score difference (binary: KEEP-minus-SWITCH preference difference). Equality on any particular input, unused individual features and saturation remain allowed. A holding-only or constant program is insufficient; no minimum response slope or switching action is required.

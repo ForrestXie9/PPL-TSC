@@ -71,7 +71,7 @@ class FeatureSpec:
 
 class FeatureExtractor:
     """
-    Extract feature variables from the structured phase-level state produced by collect_teacher_data.py.
+    Extract feature variables from the structured phase-level state produced by collect_teacher.py.
     Supports Min-Max normalization for stable feature ranges.
     """
 
@@ -139,7 +139,7 @@ class FeatureExtractor:
 
         # Handle edge case where min == max
         if max_val - min_val < 1e-8:
-            return 0.5 if self.clip_normalized else 0.0  # Preserve archived v1 semantics.
+            return 0.5 if self.clip_normalized else 0.0  # Constant ranges use the midpoint when clipped, otherwise zero.
 
         scaled_value = np.clip(value, min_val, max_val) if self.clip_normalized else value
         normalized = (scaled_value - min_val) / (max_val - min_val)
@@ -148,7 +148,7 @@ class FeatureExtractor:
 
     def _extract_one(self, spec: FeatureSpec, state: Dict[str, Any], phase_id: int) -> float:
         if spec.kind == "current_phase":
-            # phase_active is now a binary indicator: 1 if phase_id is the currently executing phase, 0 otherwise
+            # phase_active is a binary indicator: 1 if phase_id is the currently executing phase, 0 otherwise
             current_executing_phase = _safe_float(state.get("current_phase"))
             if current_executing_phase is not None:
                 return 1.0 if int(current_executing_phase) == phase_id else 0.0

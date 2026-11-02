@@ -31,7 +31,7 @@ class TeacherDataLoader:
                     with self._open_text() as stream:
                         data = json.load(stream)
                 except json.JSONDecodeError:
-                    # Legacy rollouts sometimes use .json for JSONL content.
+                    # JSONL content may be saved with a .json extension.
                     # Apply exactly the same strict parser as for .jsonl.
                     self._load_jsonl()
                 else:
@@ -394,10 +394,10 @@ class TeacherDataLoader:
                         values_by_kind[kind].append(raw_value)
 
         for timestep in self.timesteps:
-            # Top-level (legacy)
+            # Top-level directional features
             if "features_by_direction" in timestep:
                 collect_from_fbd(timestep.get("features_by_direction", {}))
-            # Per-phase state (collect_teacher_data format)
+            # Per-phase state from the teacher collector
             for phase in timestep.get("phases", []):
                 state = phase.get("state") or {}
                 if "features_by_direction" in state:

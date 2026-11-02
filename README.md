@@ -28,6 +28,7 @@ python run.py --config outputs/student/config.json
 `configure_api.py` saves your API key locally. Distillation makes paid LLM requests.
 Add `--dry-run` to `run.py` to check a configuration without calling the API.
 `python scripts/check_environment.py` runs a local self-check without API calls.
+Run records include source and input hashes for reproducibility.
 
 Teachers: **CoLight, FRAP, MPLight, TinyLight, EcoLight**.
 Student variants: `CoLight`, `FRAP`, `MPLight`, `TinyLight`, `EcoLight-original`,

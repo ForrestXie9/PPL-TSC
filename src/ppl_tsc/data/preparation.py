@@ -285,7 +285,7 @@ def prepare_source(
                     hashlib.sha256(path.read_bytes()).hexdigest() == meta[key],
                     f"Source {key} mismatch",
                 )
-        # Legacy phase rollouts may omit schema; aligned binary files must declare it.
+        # Phase-only rollouts may omit schema; aligned binary files must declare it.
         header = loader.get_header()
         mode = "binary_keep_switch" if action_mode == "binary_keep_switch" else "phase_argmax"
         required = []

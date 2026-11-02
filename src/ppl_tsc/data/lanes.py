@@ -11,12 +11,12 @@ def lane_directions(roadlinks, direction_codes):
 
 
 def restore_contract(config, run_config):
-    semantics = run_config.get("direction_feature_semantics", "legacy_first_match")
-    if semantics not in {"legacy_first_match", "compatible_shared_lane_mean_v1"}:
+    semantics = run_config.get("direction_feature_semantics", "first_matching_roadlink")
+    if semantics not in {"first_matching_roadlink", "compatible_shared_lane_mean"}:
         raise ValueError("Unknown direction feature semantics: " + str(semantics))
     if (
-        run_config.get("method_profile") == "full_100_256_v1"
-        and semantics != "compatible_shared_lane_mean_v1"
+        run_config.get("method_profile") == "full"
+        and semantics != "compatible_shared_lane_mean"
     ):
         raise ValueError("Current deployment requires its recorded compatible shared-lane contract")
     config["direction_feature_semantics"] = semantics

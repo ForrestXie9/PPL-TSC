@@ -236,7 +236,7 @@ class GeneralAPIInterface(LLMInterface):
                 msg = choice0.get("message") or {}
                 content = msg.get("content")
                 if content is None:
-                    # Support legacy completion-style responses.
+                    # Accept completion-style text responses.
                     content = choice0.get("text")
                 if content is None:
                     raise RuntimeError(
@@ -400,7 +400,7 @@ def run_llm(
     if backend in ("comp", "comp_openai", "azure_apim", "azure"):
         if os.getenv("LLM_CACHE_MODE", "").strip().lower() == "readonly":
             raise ValueError(
-                "Legacy COMP backend has no offline replay support; refusing network access"
+                "COMP backend has no offline replay support; refusing network access"
             )
         raise ValueError(
             "The private COMP/Azure adapter is not included. Configure an "

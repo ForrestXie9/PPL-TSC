@@ -42,7 +42,7 @@
     "simulation_seed": 992832
   },
   "method": {
-    "profile": "full_100_256_v1",
-    "prompt_template": "paper_figure_a2_v1"
+    "profile": "full",
+    "prompt_template": "paper_figure_a2"
   }
 }

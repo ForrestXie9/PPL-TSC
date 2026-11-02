@@ -44,7 +44,7 @@ def observed_direction_keys(loader):
 
 
 def source_feature_contract(extractor, measured_statistics, loader):
-    """Filter legacy specs to measured kinds; current_phase is declared support."""
+    """Keep measured feature kinds and the declared current-phase indicator."""
     extractor.specs = [spec for spec in extractor.specs if spec.kind in measured_statistics]
     extractor.feature_names = [spec.name for spec in extractor.specs]
     statistics = {spec.name: dict(measured_statistics[spec.kind]) for spec in extractor.specs}

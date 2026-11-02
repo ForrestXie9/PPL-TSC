@@ -26,7 +26,7 @@ class FunctionUtility:
 
         Args:
             function_code: Complete Python function code (def compute_utility(...): ...)
-            feature_extractor: Optional FeatureExtractor instance (for backward compatibility)
+            feature_extractor: Optional FeatureExtractor instance (for optional feature transformation)
             feature_stats: Optional feature statistics for normalization
         """
         self.function_code = function_code.strip()
@@ -150,7 +150,7 @@ class FunctionUtility:
 
         Args:
             state_dict: Dictionary mapping phase_id to state
-            feature_extractor: Optional feature extractor (for backward compatibility)
+            feature_extractor: Optional feature extractor (for optional feature transformation)
             feature_stats: Optional feature statistics
             phase_bias: Optional dict phase_id -> bias; Q_adjusted[phase] = Q_raw[phase] + phase_bias.get(phase, 0.0)
 
@@ -271,7 +271,7 @@ class FunctionUtility:
 
         # New diagnosis rollouts and the online simulator provide the exact
         # two EcoLight inputs.  Retain a deterministic fallback so saved
-        # legacy rollouts can still be inspected, but the controlled
+        # phase-only rollouts can still be inspected, but the controlled
         # experiment validates that exact_binary_features=True.
         exact = state_dict[current_phase].get("binary_features")
         exact_binary_features = isinstance(exact, dict)
@@ -360,7 +360,7 @@ class FunctionUtility:
 
         Args:
             state_dict: Dictionary mapping phase_id to state
-            feature_extractor: Optional (for backward compatibility)
+            feature_extractor: Optional (for optional feature transformation)
             feature_stats: Optional feature statistics
             phase_bias: Optional per-phase bias (e.g. from per-intersection tuning)
 
