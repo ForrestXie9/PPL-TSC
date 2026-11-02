@@ -9,7 +9,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'src'))
-from ppl_tsc_current.artifact_io import atomic_json, new_gzip_jsonl
+from ppl_tsc.artifacts import atomic_json, new_gzip_jsonl
 
 
 def phase_projection(source, destination, *, loader=None):
@@ -19,7 +19,7 @@ def phase_projection(source, destination, *, loader=None):
         raise ValueError('Projection output must be new and different from the source')
     digest = hashlib.sha256(source.read_bytes()).hexdigest()
     if loader is None:
-        from LLM_SR_DISTILLATION.data_loader import TeacherDataLoader
+        from ppl_tsc.data.loader import TeacherDataLoader
         loader = TeacherDataLoader(str(source))
 
     def rows():
@@ -56,13 +56,14 @@ def main():
     parser.add_argument('--endpoint', default='api.n1n.ai')
     parser.add_argument('--model', default='gemini-3.1-flash-lite')
     args = parser.parse_args()
-    from LLM_SR_DISTILLATION.data_loader import TeacherDataLoader
-    from LLM_SR_DISTILLATION.source_preparation import prepare_source
+    from ppl_tsc.data.loader import TeacherDataLoader
+    from ppl_tsc.data.preparation import prepare_source
 
     trajectory = args.trajectory.resolve()
     config = json.loads((ROOT / 'configs/examples' / f'{args.variant}.json').read_text())
-    traffic_path = ROOT / 'configs/traffic_current.json'
-    traffic = json.loads(traffic_path.read_text())
+    traffic_path = ROOT / 'configs/traffic.json'
+    from ppl_tsc.config import source_environment
+    traffic = source_environment(traffic_path)
     teacher = config['data']['teacher_model']
     try:
         loader = TeacherDataLoader(str(trajectory))

@@ -9,7 +9,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT), str(ROOT / 'src')]
 from evaluate import validate_deployment
-from ppl_tsc_current.artifact_io import atomic_json
+from ppl_tsc.artifacts import atomic_json
 
 
 def main():

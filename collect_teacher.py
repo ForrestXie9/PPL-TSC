@@ -2,7 +2,6 @@
 """Collect aligned teacher trajectories with the same feature builder used at deployment."""
 from __future__ import annotations
 import argparse
-import gzip
 import hashlib
 import json
 import math
@@ -54,9 +53,9 @@ def main():
     if args.output.exists():parser.error('Trajectory output already exists; use a new path')
     provenance=validate_checkpoint_audit(args.checkpoint,audit_path,args.teacher,ROOT/'data'/args.scenario/'roadnet.json',args.allow_unaudited_checkpoint,
                                          traffic_config=ROOT/'configs/traffic.json',environment_semantics='per_decision')
-    import teacher_evaluation as evaluation
+    import agent.evaluation as evaluation
     import torch
-    from LLM_SR_DISTILLATION.simulator import StudentSimulator
+    from ppl_tsc.runtime.simulator import StudentSimulator
     from env.ood_env import OODTSCEnv
     seed=args.seed if args.seed is not None else [992832,284765,905873,776383,198876][args.flow]
     horizon={'Atlanta':900,'LosAngeles':1800}.get(args.scenario,3600)
@@ -105,7 +104,7 @@ def main():
                       'intersections':[{'id':i,'num_phases':len(inter.n_phase)} for i,inter in enumerate(env.n_intersection)]},
             'stats':{'avg_travel_time':metrics['ATT'],'total_samples':horizon//config['action_interval']},
             'schema':{'timestep':'zero-based decision index','binary_interface':args.teacher=='EcoLight'}}
-    from ppl_tsc_current.artifact_io import new_gzip_jsonl
+    from ppl_tsc.artifacts import new_gzip_jsonl
     new_gzip_jsonl(args.output, [header,*rows])
     print(f'Collected {len(rows)} records, ATT={metrics["ATT"]:.6f}: {args.output}')
     return 0

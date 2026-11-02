@@ -45,7 +45,7 @@ def validate_deployment(deployment: dict, roadnet_hash: str) -> dict[int, dict[i
         raise ValueError("Deployment run_config must be a JSON object")
     if run_config.get("feature_contract_version") not in {None, "raw_direction_features_v1", "normalized_phase_features_v1", "normalized_phase_features_v2"}:
         raise ValueError("Unknown feature contract; refusing silent normalization fallback")
-    from ppl_tsc_current.shared_lane import restore_contract
+    from ppl_tsc.data.lanes import restore_contract
     restore_contract({}, run_config)
     raw = deployment.get("per_intersection_bias", {})
     if not isinstance(raw, dict) or any(not isinstance(v, dict) for v in raw.values()):
@@ -79,7 +79,7 @@ def main() -> int:
     args = parser.parse_args()
     if args.output.resolve() == args.deployment.resolve():
         parser.error("Output must not overwrite deployment")
-    from ppl_tsc_current.artifact_io import evaluation_record
+    from ppl_tsc.artifacts import evaluation_record
     with evaluation_record(args.output, {"deployment_path": str(args.deployment.resolve()), "scenario": args.scenario, "flow": args.flow}) as commit_result:
         deployment = json.loads(args.deployment.read_text())
         scenario_dir = ROOT / "data" / args.scenario
@@ -94,10 +94,10 @@ def main() -> int:
             parser.error("--steps is required: deployment does not record its horizon")
 
         from utilities.utils import get_config
-        from LLM_SR_DISTILLATION.function_utility import FunctionUtility
-        from LLM_SR_DISTILLATION.feature_extractor import build_feature_extractor
-        from LLM_SR_DISTILLATION.policy_diagnostics import PolicyDecisionDiagnostics
-        from LLM_SR_DISTILLATION.simulator import StudentSimulator
+        from ppl_tsc.runtime.utility import FunctionUtility
+        from ppl_tsc.data.features import build_feature_extractor
+        from ppl_tsc.runtime.diagnostics import PolicyDecisionDiagnostics
+        from ppl_tsc.runtime.simulator import StudentSimulator
 
         config = get_config(str(ROOT / "configs/traffic.json"))
         teacher = run_config.get("teacher_model")

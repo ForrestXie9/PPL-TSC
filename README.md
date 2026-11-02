@@ -27,13 +27,16 @@ python run.py --config outputs/student/config.json
 
 `configure_api.py` saves your API key locally. Distillation makes paid LLM requests.
 Add `--dry-run` to `run.py` to check a configuration without calling the API.
+`python scripts/check_environment.py` runs a local self-check without API calls.
 
 Teachers: **CoLight, FRAP, MPLight, TinyLight, EcoLight**.
 Student variants: `CoLight`, `FRAP`, `MPLight`, `TinyLight`, `EcoLight-original`,
 `EcoLight-native`, `EcoLight-phase-selection`. Use the matching `--teacher` and `--variant`.
 
 Default search: population 5, generations 5; CMA-ES population 20, maximum 20 iterations.
-Configuration templates are in `configs/examples/`.
+Configuration templates are in `configs/examples/`; all commands share `configs/traffic.json`.
+The default fitness is ABF + exp(min(Delta, 0)), where Delta is relative ATT improvement.
+Each source intersection and physical phase has an offset in [-0.5, 0.5].
 
 ### EcoLight
 
@@ -74,7 +77,9 @@ Use `--help` on each command for additional options.
 
 ## Code
 
-- `src/`: PPL-TSC, the five teachers, and simulator interfaces.
+- `src/ppl_tsc/`: data contracts, LLM prompts, verification, search, calibration, and policy execution.
+- `src/agent/`: the five DRL teachers and their training code.
+- `src/env/` and `src/utilities/`: traffic environments and shared utilities.
 - `configs/`: method and environment settings.
 - `data/`: seven networks and five traffic flows per network.
 - `CityFlow/`: simulator source and build dependencies.

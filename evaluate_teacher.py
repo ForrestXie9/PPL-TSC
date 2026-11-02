@@ -14,7 +14,7 @@ def resolve_seed(explicit_seed,audit):
 
 def load_source_zero(env,config,checkpoint):
  import torch
- import teacher_evaluation as evaluation
+ import agent.evaluation as evaluation
  payload=torch.load(checkpoint,map_location='cpu',weights_only=False)
  if payload.get('parameter_sharing') is True or 'shared_local' in payload:
   raise ValueError('Experimental Shared checkpoint is not an original-family checkpoint')
@@ -44,7 +44,7 @@ def main():
  p.add_argument('--output',required=True,type=Path)
  a=p.parse_args()
  if a.output.resolve() in {a.checkpoint.resolve(),a.training_audit.resolve()}:p.error('Output must not overwrite checkpoint or training audit')
- from ppl_tsc_current.artifact_io import evaluation_record
+ from ppl_tsc.artifacts import evaluation_record
  with evaluation_record(a.output, {'checkpoint_path':str(a.checkpoint.resolve()),'scenario':a.scenario,'flow':a.flow,'protocol':a.protocol}) as commit_result:
   audit=json.loads(a.training_audit.read_text());teacher=audit['teacher']
   if teacher not in {'CoLight','EcoLight','FRAP','MPLight','TinyLight'}:p.error('Unsupported teacher in training audit')
@@ -53,7 +53,7 @@ def main():
   validate_checkpoint_audit(a.checkpoint,a.training_audit,teacher,ROOT/'data'/audit['scenario']/'roadnet.json',
                             traffic_config=ROOT/'configs/traffic.json',environment_semantics='per_decision')
   a.seed=resolve_seed(a.seed,audit)
-  import teacher_evaluation as evaluation
+  import agent.evaluation as evaluation
   horizon={'Atlanta':900,'LosAngeles':1800}.get(a.scenario,3600)
   config=evaluation.build_config(ROOT/'configs/traffic.json',teacher,a.scenario,a.flow,a.seed,horizon,ROOT/'data'/a.scenario)
   config.update(waiting_time_semantics='per_decision',direction_feature_semantics='compatible_shared_lane_mean_v1')
