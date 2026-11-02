@@ -19,8 +19,8 @@ def validate_checkpoint_audit(checkpoint, audit_path, teacher, roadnet, allow_un
     """Collection is same-network replay, not implicit cross-network transfer."""
     if not audit_path.is_file():
         if not allow_unaudited:
-            raise ValueError('Training audit missing; provide --training-audit or explicitly use --allow-unaudited-checkpoint for a legacy model')
-        return {'status':'unaudited_legacy_checkpoint'}
+            raise ValueError('Training audit missing; provide --training-audit or explicitly use --allow-unaudited-checkpoint for a model without training audit')
+        return {'status':'unaudited_checkpoint'}
     audit=json.loads(audit_path.read_text())
     if audit.get('status')!='complete':raise ValueError('Teacher training audit is not complete')
     if audit.get('teacher')!=teacher:raise ValueError('Checkpoint teacher does not match requested teacher')
@@ -42,8 +42,8 @@ def main():
     parser.add_argument('--flow',type=int,choices=range(5),required=True)
     parser.add_argument('--checkpoint',type=Path,required=True)
     parser.add_argument('--training-audit',type=Path,help='Defaults to audit.json beside checkpoint')
-    parser.add_argument('--allow-unaudited-checkpoint',action='store_true',help='Explicitly allow legacy models without a training audit; never bypass a mismatching audit')
-    parser.add_argument('--direction-feature-semantics',choices=['legacy_first_match','compatible_shared_lane_mean_v1'],default='compatible_shared_lane_mean_v1')
+    parser.add_argument('--allow-unaudited-checkpoint',action='store_true',help='Explicitly allow checkpoints without a training audit; never bypass a mismatching audit')
+    parser.add_argument('--direction-feature-semantics',choices=['first_matching_roadlink','compatible_shared_lane_mean'],default='compatible_shared_lane_mean')
     parser.add_argument('--seed',type=int)
     parser.add_argument('--output',type=Path,required=True)
     args=parser.parse_args()
@@ -97,7 +97,7 @@ def main():
                     'roadnet_sha256':hashlib.sha256((ROOT/'data'/args.scenario/'roadnet.json').read_bytes()).hexdigest(),
                     'flow_sha256':hashlib.sha256((ROOT/'data'/args.scenario/f'flow_{args.flow}.json').read_bytes()).hexdigest(),
                     'teacher_variant':args.teacher,'checkpoint_provenance':provenance,
-                    'collector':'deployment-feature-aligned-v2',
+                    'collector':'aligned_phase_features',
                     'environment_semantics':config['waiting_time_semantics'],
                     'direction_feature_semantics':args.direction_feature_semantics},
             'config':{'episode_seeds':[seed],'n_episodes':1,'num_step':horizon,

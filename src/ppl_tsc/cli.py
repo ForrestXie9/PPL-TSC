@@ -129,28 +129,9 @@ def _sha256_file(path: Path) -> str:
 
 
 def _sha256_source_tree() -> str:
-    digest = hashlib.sha256()
-    paths = list(SRC.rglob("*.py")) + [
-        ROOT / name for name in ("run.py", "evaluate.py", "train_teacher.py", "collect_teacher.py")
-    ]
-    # Include the bundled simulator: local fixes affect execution provenance.
-    paths += [
-        path
-        for path in (ROOT / "CityFlow").rglob("*")
-        if path.suffix in {".cpp", ".h", ".hpp", ".py"} or path.name == "CMakeLists.txt"
-    ]
-    for path in sorted(
-        path
-        for path in paths
-        if path.is_file()
-        and not any(
-            part in {"build", ".git", "__pycache__"} or part.endswith(".egg-info")
-            for part in path.relative_to(ROOT).parts
-        )
-    ):
-        digest.update(path.relative_to(ROOT).as_posix().encode("utf-8"))
-        digest.update(path.read_bytes())
-    return digest.hexdigest()
+    from ppl_tsc.provenance import source_tree_sha256
+
+    return source_tree_sha256(ROOT)
 
 
 def _package_versions() -> dict[str, str]:
@@ -386,7 +367,7 @@ def _run_output_guard(config, resolved, teacher_data_paths, output_dir):
             data_path = root / "data" / meta["dataset"] / name
             sources[str(data_path.resolve())] = _sha256_file(data_path)
     identity = {
-        "schema": "release_run_identity_v1",
+        "schema": "run_identity",
         "config": config,
         "source_sha256": _sha256_source_tree(),
         "traffic_sha256": _sha256_file(Path(resolved["traffic_config"])),
@@ -416,7 +397,7 @@ def _run_output_guard(config, resolved, teacher_data_paths, output_dir):
                 or any(output_dir.rglob("results_*.json"))
             ):
                 raise ValueError(
-                    "Existing results have no run identity; use a new output directory instead of silently reusing legacy results"
+                    "Existing results have no input/source identity; use a new output directory"
                 )
             temporary = protocol.with_suffix(".tmp")
             try:
@@ -450,10 +431,10 @@ def _prepare_resume_manifest(
     generations = int(search.get("generations", 5))
     simulation_seed = int(resolved["simulation_seed"])
     expected_identity = {}
-    if resolved.get("method_profile") == "full_100_256_v1":
-        from ppl_tsc.version import implementation_identity
+    if resolved.get("method_profile") == "full":
+        from ppl_tsc.provenance import source_identity
 
-        expected_identity = implementation_identity()
+        expected_identity = source_identity(ROOT)
     pending = []
     for entry in manifest:
         paths = _result_artifacts(
@@ -473,8 +454,7 @@ def _prepare_resume_manifest(
             ]
             if mismatched:
                 raise ValueError(
-                    "Cannot resume current full profile from a different or "
-                    "unrecorded implementation revision: "
+                    "Completed artifacts do not match the method and source contents: "
                     + ", ".join(mismatched)
                     + ". Preserve the existing policies and use a fresh output "
                     "directory for the current implementation."
@@ -621,18 +601,18 @@ def _build_internal_argv(
             teacher_model,
         ]
 
-    from ppl_tsc.config import validate_config as validate_current_profile
+    from ppl_tsc.config import validate_config as validate_method_config
 
-    validate_current_profile(config)
-    if config.get("method", {}).get("profile") == "full_100_256_v1":
+    validate_method_config(config)
+    if config.get("method", {}).get("profile") == "full":
         for rollout_path in teacher_data_paths:
             source_header, _ = _rollout_preview(rollout_path)
             if (
                 source_header.get("meta", {}).get("direction_feature_semantics")
-                != "compatible_shared_lane_mean_v1"
+                != "compatible_shared_lane_mean"
             ):
                 raise ValueError(
-                    "Current full method requires matching compatible-shared-lane source observations"
+                    "The full method requires compatible shared-lane source observations"
                 )
     environment_semantics = json.loads(traffic_config.read_text()).get(
         "waiting_time_semantics", "per_decision"
@@ -642,12 +622,12 @@ def _build_internal_argv(
         meta = header.get("meta", {})
         if (
             meta.get("model") == "TinyLight"
-            and meta.get("environment_semantics", "legacy_per_read") != environment_semantics
+            and meta.get("environment_semantics", "per_read") != environment_semantics
         ):
             raise ValueError(
                 "TinyLight trajectory feature semantics differ from the environment. "
-                "Regenerate trajectories for corrected training; historical replay requires "
-                "a separate traffic config with waiting_time_semantics=legacy_per_read."
+                "Collect trajectories with matching semantics, or explicitly select "
+                "waiting_time_semantics=per_read in a separate traffic configuration."
             )
 
     horizon_matched = True
@@ -973,13 +953,13 @@ def main() -> int:
         disable_cache=args.no_cache,
         validate_only=args.dry_run,
     )
-    resolved["method_profile"] = config.get("method", {}).get("profile", "custom_configuration")
-    if resolved["method_profile"] == "full_100_256_v1":
+    resolved["method_profile"] = config.get("method", {}).get("profile", "custom")
+    if resolved["method_profile"] == "full":
         from ppl_tsc.config import PROMPT_TEMPLATE
-        from ppl_tsc.version import implementation_identity
+        from ppl_tsc.provenance import source_identity
 
         resolved["prompt_template"] = PROMPT_TEMPLATE
-        resolved.update(implementation_identity())
+        resolved.update(source_identity(ROOT))
     resolved["verifier"] = {"source_bundles": 100, "coordinates": 256}
     resolved["api_profile"] = str(api_profile_path) if api_profile_path else None
     if args.continue_on_error:

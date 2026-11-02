@@ -204,7 +204,7 @@ class StudentSimulator:
         for idx, lane_id in enumerate(inter.n_in_lane_id):
             inlane_to_direction[idx] = lane_id_to_direction.get(lane_id, "Unknown")
 
-        if self.env_config.get("direction_feature_semantics") == "compatible_shared_lane_mean_v1":
+        if self.env_config.get("direction_feature_semantics") == "compatible_shared_lane_mean":
             from ppl_tsc.data.lanes import lane_directions
 
             mapping = lane_directions(inter.n_roadlink, roadlink_direction_codes)

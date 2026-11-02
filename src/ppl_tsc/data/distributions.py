@@ -1,8 +1,7 @@
-"""Optional source statistics enrichment; old fields and the observation pool stay intact."""
+"""Compute distribution summaries from the source observation pool."""
 
 import numpy as np
 
-MARKER = "FROZEN SOURCE FEATURE DISTRIBUTION v1"
 FIELDS = ["p50", "p75", "p90", "p95", "p99", "zero_fraction"]
 
 

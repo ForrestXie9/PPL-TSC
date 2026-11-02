@@ -82,7 +82,7 @@ def run_distillation_single(
     if teacher_model not in config:
         raise ValueError(f"Teacher model {teacher_model} not found in config.json")
 
-    config["direction_feature_semantics"] = "compatible_shared_lane_mean_v1"
+    config["direction_feature_semantics"] = "compatible_shared_lane_mean"
     teacher_config = config[teacher_model]
     observation_features = teacher_config.get("observation_feature_list", [])
 
@@ -231,7 +231,7 @@ def run_distillation_single(
     )
 
     constraint_validator.prepare_source_checks()
-    source_preparation["verifier_revision"] = "source_preparation_active_coverage_v1"
+    source_preparation["verifier"] = "source_coverage"
     source_preparation["active_phase_preparation"] = {
         "status": constraint_validator._active_phase_prepared["status"],
         "planned_pairs": len(constraint_validator._active_phase_prepared["probes"]),
@@ -334,9 +334,8 @@ def run_distillation_single(
 
     dataset = meta.get("dataset") or teacher_model
     evolution.run_config = {
-        "algorithm_version": "0.4.5-scale-reminder",
-        "feature_contract_version": "raw_direction_features_v1",
-        "source_verifier_revision": "source_preparation_active_coverage_v1",
+        "feature_contract": "raw_direction_features",
+        "source_verifier": "source_coverage",
         "teacher_model": teacher_model,
         "environment_semantics": get_config(args.config_path).get(
             "waiting_time_semantics", "per_decision"
@@ -372,7 +371,6 @@ def run_distillation_single(
         "action_weight": float(args.action_weight),
         "performance_weight": float(args.performance_weight),
         "control_score": {
-            "version": "capped_exp_relative_att_v1",
             "formula": "exp(min((teacher_ATT-student_ATT)/(abs(teacher_ATT)+epsilon),0))",
             "epsilon": float(evaluator.epsilon),
             "clipped_at_one": True,
@@ -380,17 +378,16 @@ def run_distillation_single(
         "time_budget_seconds": time_budget_seconds,
     }
 
-    from ppl_tsc.version import implementation_identity
+    from ppl_tsc.provenance import source_identity
 
     evolution.run_config.update(
-        algorithm_version="0.4.5-scale-reminder",
         method_profile=args.method_profile,
-        prompt_template="paper_figure_a2_v1",
-        direction_feature_semantics="compatible_shared_lane_mean_v1",
+        prompt_template="paper_figure_a2",
+        direction_feature_semantics="compatible_shared_lane_mean",
     )
-    evolution.run_config.update(implementation_identity())
+    evolution.run_config.update(source_identity())
     evolution.run_config["verifier"] = {
-        "contract_version": "source_schema_sparse_discrimination_v2",
+        "contract": "source_schema_sparse_discrimination",
         "source_bundles": 100,
         "coordinates": 256,
         "direction_order_comparisons": 40,
@@ -656,7 +653,7 @@ def main(argv=None, *, method_profile="custom"):
             "binary_keep_switch",
         ],
         help=(
-            "Student decision rule. auto preserves the legacy behavior "
+            "Student decision rule. auto selects the teacher-family interface "
             "(EcoLight keep/switch; all other teachers all-phase argmax)."
         ),
     )
@@ -813,18 +810,11 @@ def main(argv=None, *, method_profile="custom"):
     )
 
     parser.add_argument(
-        "--no_fit_per_intersection_bias",
-        action="store_false",
-        dest="fit_per_intersection_bias",
-        help="Deprecated: post-evolution bias fitting is disabled (default).",
+        "--config_path", type=str, default="configs/traffic.json", help="Path to traffic settings"
     )
 
     parser.add_argument(
-        "--config_path", type=str, default="configs/traffic.json", help="Path to config.json file"
-    )
-
-    parser.add_argument(
-        "--output_dir", type=str, default="./llm_sr_results", help="Output directory for results"
+        "--output_dir", type=str, default="outputs/student", help="Output directory for results"
     )
 
     parser.add_argument("--verbose", action="store_true", default=True, help="Verbose output")

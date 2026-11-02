@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Resumable teacher training using the archived 128-episode, unfrozen protocol."""
+"""Train original DRL teachers with deterministic checkpointing and resume."""
 from __future__ import annotations
 import argparse
 import hashlib
@@ -59,7 +59,7 @@ def main():
               'roadnet_sha256':sha(ROOT/'data'/args.scenario/'roadnet.json'),
               'flow_sha256':sha(ROOT/'data'/args.scenario/f'flow_{args.flow}.json'),
               'environment_semantics':'per_decision','epsilon_decay_episodes':55,
-              'TinyLight_variant':'unfrozen-128-archived-protocol; corrected-alpha-TD-gradient-v2; not canonical-pruned-64+128'}
+              'tiny_light_architecture':{'learn_architecture_weights':True,'prune_architecture':False} if args.teacher=='TinyLight' else None}
     p=args.output_dir/'protocol.json'
     if p.exists() and json.loads(p.read_text())!=protocol:raise ValueError('Protocol changed; use a new output directory')
     write_json(p,protocol)

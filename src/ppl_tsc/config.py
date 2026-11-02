@@ -4,9 +4,9 @@ from dataclasses import dataclass
 import json
 from pathlib import Path
 
-PROFILE = "full_100_256_v1"
-PROMPT_TEMPLATE = "paper_figure_a2_v1"
-DIRECTION_SEMANTICS = "compatible_shared_lane_mean_v1"
+PROFILE = "full"
+PROMPT_TEMPLATE = "paper_figure_a2"
+DIRECTION_SEMANTICS = "compatible_shared_lane_mean"
 
 
 @dataclass(frozen=True)

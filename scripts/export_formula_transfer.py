@@ -42,7 +42,7 @@ def main():
     source_metrics = deployment.pop('metrics', None)
     source_score = deployment.pop('score', None)
     deployment['transfer_export'] = {
-        'protocol': 'formula_only_source_statistics_v1',
+        'protocol': 'formula_with_source_statistics',
         'evaluation_status': 'not_evaluated',
         'source_deployment_sha256': hashlib.sha256(source_bytes).hexdigest(),
         'source_policy_metrics': source_metrics,

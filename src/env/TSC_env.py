@@ -83,7 +83,7 @@ class TSCEnv:
             'world_2_average_delay': self._world_2_average_delay,
         }
         self.waiting_time_semantics = config.get('waiting_time_semantics', 'per_decision')
-        if self.waiting_time_semantics not in {'per_decision', 'legacy_per_read'}:
+        if self.waiting_time_semantics not in {'per_decision', 'per_read'}:
             raise ValueError('Unknown waiting_time_semantics')
         self._vehicle_waiting_time = {}
         self._vehicle_waiting_time_last_update_time = -1
@@ -304,8 +304,7 @@ class TSCEnv:
     ##############################################
 
     def _get_vehicle_waiting_time(self):  # Accumulate waiting decisions; duration follows the configured action interval.
-        # A feature read must not advance time. Historical artifacts deliberately
-        # retain the old behavior through an explicit reproduction-only mode.
+        # per_decision updates once per decision time; per_read updates on each call.
         cur_time = self.eng.get_current_time()
         if (self.waiting_time_semantics == 'per_decision'
                 and cur_time <= self._vehicle_waiting_time_last_update_time):
@@ -396,7 +395,7 @@ class TSCEnv:
         lane_2_num_waiting_vehicle = self.eng.get_lane_waiting_vehicle_count()
         return self._concat_by_unit(lane_2_num_waiting_vehicle, inter, unit='lane', inroad_only=False, outroad_only=False)
 
-    # Legacy aggregate of waiting counts over outgoing lanes.
+    # Aggregate waiting counts over outgoing lanes.
     def _outlane_2_num_vehicle(self, inter: Intersection):
         lane_2_num_vehicle = self.eng.get_lane_vehicle_count()
         return self._concat_by_unit(lane_2_num_vehicle, inter, unit='lane', inroad_only=False, outroad_only=True)

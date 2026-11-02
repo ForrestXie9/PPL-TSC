@@ -17,7 +17,7 @@ def load_source_zero(env,config,checkpoint):
  import agent.evaluation as evaluation
  payload=torch.load(checkpoint,map_location='cpu',weights_only=False)
  if payload.get('parameter_sharing') is True or 'shared_local' in payload:
-  raise ValueError('Experimental Shared checkpoint is not an original-family checkpoint')
+  raise ValueError('Shared-architecture checkpoint does not match the original teacher implementation')
  local=payload['agent_0_local'];target=payload.get('agent_0_target',local)
  env.n_agent=[]
  for i in range(env.n):env.n_agent.append(evaluation.get_agent(config['cur_agent'])(config,env,i))
@@ -56,7 +56,7 @@ def main():
   import agent.evaluation as evaluation
   horizon={'Atlanta':900,'LosAngeles':1800}.get(a.scenario,3600)
   config=evaluation.build_config(ROOT/'configs/traffic.json',teacher,a.scenario,a.flow,a.seed,horizon,ROOT/'data'/a.scenario)
-  config.update(waiting_time_semantics='per_decision',direction_feature_semantics='compatible_shared_lane_mean_v1')
+  config.update(waiting_time_semantics='per_decision',direction_feature_semantics='compatible_shared_lane_mean')
   if a.protocol=='same_network':
    if audit['roadnet_sha256']!=sha(ROOT/'data'/a.scenario/'roadnet.json'):p.error('same_network requires identical roadnet')
    setup=lambda env:evaluation.load_teacher_agents(env,config,a.checkpoint)

@@ -43,7 +43,9 @@ def validate_deployment(deployment: dict, roadnet_hash: str) -> dict[int, dict[i
     run_config = deployment.get("run_config", {})
     if not isinstance(run_config, dict):
         raise ValueError("Deployment run_config must be a JSON object")
-    if run_config.get("feature_contract_version") not in {None, "raw_direction_features_v1", "normalized_phase_features_v1", "normalized_phase_features_v2"}:
+    if any(str(key).startswith("feature_contract") and key != "feature_contract" for key in run_config):
+        raise ValueError("Unrecognized feature contract field; use feature_contract explicitly")
+    if run_config.get("feature_contract") not in {None, "raw_direction_features", "clipped_minmax_phase_features", "minmax_phase_features"}:
         raise ValueError("Unknown feature contract; refusing silent normalization fallback")
     from ppl_tsc.data.lanes import restore_contract
     restore_contract({}, run_config)
@@ -69,12 +71,12 @@ def main() -> int:
     parser.add_argument("--deployment", type=Path, required=True)
     parser.add_argument("--scenario", required=True, choices=sorted(p.name for p in (ROOT / "data").iterdir() if p.is_dir()))
     parser.add_argument("--flow", type=int, choices=range(5), required=True)
-    parser.add_argument("--steps", type=int, help="Required when changing scenario or using a legacy artifact without a saved horizon")
+    parser.add_argument("--steps", type=int, help="Required when changing scenario or the policy does not record its simulation horizon")
     parser.add_argument("--seed", type=int)
     parser.add_argument("--diagnostics", action="store_true",
-                        help="Compatibility flag: action diagnostics are now recorded by default")
-    parser.add_argument("--environment-semantics", choices=["per_decision", "legacy_per_read"],
-                        help="Required for legacy TinyLight artifacts; legacy_per_read reproduces the historical feature bug")
+                        help="Include action diagnostics (recorded by default)")
+    parser.add_argument("--environment-semantics", choices=["per_decision", "per_read"],
+                        help="Explicit waiting-time accumulation mode; default is recorded in the policy")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     if args.output.resolve() == args.deployment.resolve():
@@ -115,7 +117,7 @@ def main() -> int:
             parser.error(f"--steps must be a positive multiple of {interval}")
         seed = args.seed if args.seed is not None else int(run_config.get("sim_seed", 992832))
         config.update({
-            "direction_feature_semantics": run_config.get("direction_feature_semantics", "legacy_first_match"),
+            "direction_feature_semantics": run_config.get("direction_feature_semantics", "first_matching_roadlink"),
             "cur_agent": teacher, "save_result": False, "render": False,
             "inter_name": args.scenario, "flow_idx": args.flow,
             "dir": str(scenario_dir) + "/", "roadnetFile": "roadnet.json",
@@ -123,11 +125,11 @@ def main() -> int:
             "current_episode_idx": 0, "current_episode_step_idx": 0,
         })
         simulator = StudentSimulator(config, features)
-        feature_contract = run_config.get("feature_contract_version")
+        feature_contract = run_config.get("feature_contract")
         extractor = build_feature_extractor(
             teacher, features, deployment["feature_stats"],
-            normalize_features=feature_contract in {"normalized_phase_features_v1", "normalized_phase_features_v2"},
-            clip_normalized=feature_contract == "normalized_phase_features_v1",
+            normalize_features=feature_contract in {"clipped_minmax_phase_features", "minmax_phase_features"},
+            clip_normalized=feature_contract == "clipped_minmax_phase_features",
         )
         utility = FunctionUtility(deployment["function_code"],
                                   feature_extractor=extractor,
@@ -167,7 +169,7 @@ def main() -> int:
             "simulation_seed": seed, "simulation_steps": steps,
             "action_mode": deployment["action_mode"], "policy_state": "frozen",
             "environment_semantics": config["waiting_time_semantics"],
-            "method_profile":run_config.get("method_profile","legacy_configuration"),
+            "method_profile":run_config.get("method_profile","custom"),
             "direction_feature_semantics":config["direction_feature_semantics"],
             "target_search": False, "target_calibration": False,
             "target_feature_stat_recomputation": False,

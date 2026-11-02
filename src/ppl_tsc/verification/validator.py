@@ -284,7 +284,7 @@ class ConstraintValidator:
         return check_division_safety(function_code)
 
     def _build_default_feature_ranges(self) -> Dict[str, Tuple[float, float]]:
-        """Build default raw feature ranges for legacy expression tests.
+        """Build default raw feature ranges for synthetic expression probes.
 
         Generated functions choose their own normalization; these bounds do not
         enforce normalization or constrain unseen target observations."""
@@ -482,7 +482,7 @@ class ConstraintValidator:
             "available_keys": sorted(available),
         }
 
-    # Legacy parameter helpers retained for compatibility.
+    # Parameter-based synthetic probes.
 
     def validate_with_tests(
         self, utility_function: Any, test_parameters: Dict[str, float], verbose: bool = False
@@ -1005,7 +1005,7 @@ class ConstraintValidator:
         max_samples: int = 25,
         verbose: bool = False,
     ) -> Tuple[bool, List[str]]:
-        """Check every source node/phase; max_samples is a legacy argument."""
+        """Check every source node/phase; max_samples is recorded but does not limit coverage."""
         import json
         from ppl_tsc.verification.active_phase import check
         from ppl_tsc.data.preparation import SourcePreparationError
@@ -1014,7 +1014,7 @@ class ConstraintValidator:
         result = check(self, utility_function, prepared=self._active_phase_prepared)
         if any(v["kind"] == "coverage_error" for v in result["violations"]):
             raise SourcePreparationError(str(result["violations"]))
-        result["legacy_sample_budget"] = max_samples
+        result["requested_sample_budget"] = max_samples
         result["budget_policy"] = "four_contexts_per_source_node_and_physical_phase"
         self._last_active_phase_protection = result
         if result["status"] == "not_applicable":

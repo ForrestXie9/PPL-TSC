@@ -41,8 +41,8 @@ class LLMGenerator:
             teacher_model: Teacher model name
             observation_features: Raw observation feature names from config.json
             debug_mode: Debug mode flag
-            action_mode: Policy decision rule. ``auto`` preserves the legacy
-                EcoLight keep/switch behavior; otherwise explicitly choose
+            action_mode: Policy decision rule. ``auto`` uses keep/switch for EcoLight
+                and all-phase argmax for other teachers. Otherwise choose
                 ``phase_argmax``, ``keep_switch``, or
                 ``binary_keep_switch``.
         """
