@@ -1,7 +1,7 @@
 {
   "experiment": {
-    "name": "EcoLight-naive__Hangzhou1__flow0",
-    "output_dir": "outputs/EcoLight-naive",
+    "name": "EcoLight-original__Hangzhou1__flow0",
+    "output_dir": "outputs/EcoLight-original",
     "random_seed": 2026103101
   },
   "data": {
@@ -17,7 +17,7 @@
     "api_key_env": "LLM_API_KEY",
     "temperature": 0.8,
     "cache_mode": "readwrite",
-    "cache_dir": "outputs/EcoLight-naive/llm_cache",
+    "cache_dir": "outputs/EcoLight-original/llm_cache",
     "auth_mode": "bearer",
     "cache_key_mode": "call_sequence"
   },

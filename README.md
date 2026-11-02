@@ -29,20 +29,28 @@ python run.py --config outputs/student/config.json
 Add `--dry-run` to `run.py` to check a configuration without calling the API.
 
 Teachers: **CoLight, FRAP, MPLight, TinyLight, EcoLight**.
-Student variants: `CoLight`, `FRAP`, `MPLight`, `TinyLight`, `EcoLight-native`,
-`EcoLight-naive`, `EcoLight-phase-selection`. Use the matching `--teacher` and `--variant`.
-All three EcoLight variants use the same EcoLight teacher; their student interfaces differ:
-
-| Student variant | Utility inputs | Decision |
-|---|---|---|
-| `EcoLight-native` | Exact green/red lane vehicle totals at the intersection | Score KEEP and SWITCH on the same state |
-| `EcoLight-naive` | Directional vehicle features for each candidate phase | Compare the current phase with its cyclic successor |
-| `EcoLight-phase-selection` | Directional vehicle features for each candidate phase | Select the highest-scoring phase from all phases |
-
-Both KEEP/SWITCH variants advance only to the cyclic next phase. Report the three variants separately.
+Student variants: `CoLight`, `FRAP`, `MPLight`, `TinyLight`, `EcoLight-original`,
+`EcoLight-native`, `EcoLight-phase-selection`. Use the matching `--teacher` and `--variant`.
 
 Default search: population 5, generations 5; CMA-ES population 20, maximum 20 iterations.
 Configuration templates are in `configs/examples/`.
+
+### EcoLight
+
+All three student variants use `--teacher EcoLight`.
+**EcoLight-original** retains the earlier phase-feature interface: score the current
+phase and its cyclic successor using their directional vehicle features.
+**EcoLight-native** uses EcoLight's exact green/red lane vehicle totals to score
+KEEP and SWITCH on the same state. Both advance only to the cyclic next phase.
+**EcoLight-phase-selection** scores all candidate phases and selects the highest.
+Choose the interface with `--variant`; the example below uses `EcoLight-original`.
+
+```bash
+python train_teacher.py --teacher EcoLight --scenario Hangzhou1 --flow 0 --output-dir outputs/EcoLight/teacher
+python collect_teacher.py --teacher EcoLight --scenario Hangzhou1 --flow 0 --checkpoint outputs/EcoLight/teacher/checkpoint.pth --output outputs/EcoLight/trajectory.jsonl.gz
+python scripts/prepare_distillation.py --variant EcoLight-original --trajectory outputs/EcoLight/trajectory.jsonl.gz --output-dir outputs/EcoLight/student
+python run.py --config outputs/EcoLight/student/config.json
+```
 
 ## Evaluate
 
