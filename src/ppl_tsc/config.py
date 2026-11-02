@@ -21,6 +21,28 @@ class CalibrationSettings:
 CALIBRATION = CalibrationSettings()
 
 
+def source_run_settings(entry, *, method_profile=None):
+    """Use the same path, seed and override rules in preflight and execution."""
+    if not isinstance(entry, dict):
+        raise ValueError("Each source run must be a JSON object")
+    result = dict(entry)
+    result["teacher_data_path"] = entry.get("teacher_data_path") or entry.get("teacher_data")
+    result["simulation_seed"] = next(
+        (entry[key] for key in ("simulation_seed", "sim_seed") if entry.get(key) is not None),
+        None,
+    )
+    result["search_time_budget_seconds"] = next(
+        (entry[key] for key in ("search_time_budget_seconds", "time_budget_seconds") if entry.get(key) is not None),
+        None,
+    )
+    if method_profile == PROFILE:
+        if result["search_time_budget_seconds"] is not None:
+            raise ValueError("The full method uses its fixed candidate budget; per-source time limits require method.profile=custom")
+        if result.get("teacher_delay") is not None:
+            raise ValueError("The full method uses recorded source ATT; a manual teacher baseline requires method.profile=custom")
+    return result
+
+
 def validate_config(config):
     """Validate the stable full method separately from explicit custom settings."""
     method = config.get("method", {})
