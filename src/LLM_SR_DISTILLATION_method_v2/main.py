@@ -44,7 +44,7 @@ def load_config(config_path: str = "config.json") -> Dict:
 
 
 def require_ecolight_action_contract(action_mode: str, first_timestep: Dict) -> None:
-    """Also protect direct internal entry points from Naive/Native mixing."""
+    """Also protect internal entry points from phase-feature/native interface mixing."""
     mode = "keep_switch" if action_mode == "auto" else action_mode
     if mode not in {"keep_switch", "binary_keep_switch", "phase_argmax"}:
         raise ValueError(f"Unsupported EcoLight action mode {action_mode!r}")

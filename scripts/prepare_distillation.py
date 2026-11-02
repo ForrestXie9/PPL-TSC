@@ -88,7 +88,7 @@ def main():
     destination = output / 'config.json'
     if destination.exists() or destination.is_symlink():
         parser.error('Config already exists; choose a new output directory')
-    if args.variant in {'EcoLight-phase-selection', 'EcoLight-naive'} and source_mode == 'binary_keep_switch':
+    if args.variant in {'EcoLight-phase-selection', 'EcoLight-original'} and source_mode == 'binary_keep_switch':
         projected = output / 'phase_trajectory.jsonl.gz'
         phase_projection(trajectory, projected, loader=loader)
         trajectory = projected
