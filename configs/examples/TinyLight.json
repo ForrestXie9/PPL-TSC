@@ -7,7 +7,7 @@
   "data": {
     "teacher_model": "TinyLight",
     "teacher_data": "outputs/trajectories/TinyLight_Hangzhou1_flow0.jsonl.gz",
-    "traffic_config": "configs/traffic_current.json"
+    "traffic_config": "configs/traffic.json"
   },
   "llm": {
     "provider": "openai_compatible",

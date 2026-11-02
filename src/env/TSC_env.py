@@ -195,6 +195,8 @@ class TSCEnv:
         for _ in range(self.config['action_interval']):  # One control decision spans action_interval simulator advances.
             for inter, action in zip(self.n_intersection, n_action):
                 inter.step(action, self.interval)
+                if getattr(self, 'intersection_step_observer', None) is not None:
+                    self.intersection_step_observer(inter, self.interval)
             self.eng.next_step()
 
             if self.config['render']:
