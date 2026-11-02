@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from utilities.utils import normalize_llm_api_host
+from utilities.utils import is_local_api_host, normalize_llm_api_host, resolve_llm_connection_settings
 
 _CACHE_CONTEXT = "standalone"
 _CACHE_CALL_INDEX = 0
@@ -78,8 +78,8 @@ def _validate_latin1_header_values(headers: dict) -> None:
             str(value).encode("latin-1")
         except UnicodeEncodeError as exc:
             preview = str(value)
-            if name.lower() == "authorization" and preview.lower().startswith("bearer "):
-                preview = preview[:7] + "<api_key>"
+            if name.lower() in {"authorization", "api-key", "x-api-key"}:
+                preview = "<api_key>"
             raise ValueError(
                 f"HTTP header {name!r} contains non-ASCII characters and cannot be sent. "
                 f"A placeholder may have been copied into LLM_API_KEY / --llm_api_key. "
@@ -91,7 +91,7 @@ def _validate_latin1_header_values(headers: dict) -> None:
 def _open_http_connection(api_endpoint: str, timeout: float = 300.0):
     """Use plain HTTP for local gateways; HTTPS otherwise."""
     host = normalize_llm_api_host(api_endpoint)
-    if host.startswith("127.0.0.1") or host.startswith("localhost"):
+    if is_local_api_host(host):
         return http.client.HTTPConnection(host, timeout=timeout)
     return http.client.HTTPSConnection(host, timeout=timeout)
 
@@ -129,7 +129,9 @@ class GeneralAPIInterface(LLMInterface):
         temperature: float = 0.0,
     ):
         super().__init__(api_endpoint, api_key, model, debug_mode)
-        self.auth_mode = (auth_mode or "bearer").strip().lower()
+        self.auth_mode = (auth_mode or "bearer").strip().lower().replace("-", "_")
+        if self.auth_mode not in {"bearer", "api_key"}:
+            raise ValueError("Authentication must be bearer or api_key")
         self.extra_headers = dict(extra_headers) if extra_headers else {}
         self.request_path = request_path or "/v1/chat/completions"
         self.temperature = float(temperature)
@@ -138,10 +140,11 @@ class GeneralAPIInterface(LLMInterface):
         headers = {
             "Content-Type": "application/json",
         }
-        if self.auth_mode == "api_key":
-            headers["Api-Key"] = self.api_key
-        else:
-            headers["Authorization"] = f"Bearer {self.api_key}"
+        if self.api_key:
+            if self.auth_mode == "api_key":
+                headers["Api-Key"] = self.api_key
+            else:
+                headers["Authorization"] = f"Bearer {self.api_key}"
         headers.update(self.extra_headers)
         return headers
 
@@ -178,6 +181,7 @@ class GeneralAPIInterface(LLMInterface):
                 res = conn.getresponse()
                 raw = res.read()
                 text = raw.decode("utf-8", errors="replace")
+                safe_text = text.replace(self.api_key, "[REDACTED]") if self.api_key else text
                 status = getattr(res, "status", None) or res.getcode()
                 trace.update(http_status=status, response_text=text)
 
@@ -193,11 +197,10 @@ class GeneralAPIInterface(LLMInterface):
                             "  - LLM_API_ENDPOINT: bare API hostname, without https:// or the console website domain;\n"
                             "  - LLM_REQUEST_PATH: usually /v1/chat/completions; use the provider-documented path;\n"
                             "  - LLM_AUTH_MODE: usually bearer (Authorization: Bearer <key>);\n"
-                            "  - For COMP/Azure APIM, use LLM_BACKEND=comp, comp.azure-api.net and a deployment name.\n"
                             f"Current request: host={self.api_endpoint!r} POST path={self.request_path!r}"
                         ) from je
                     raise RuntimeError(
-                        f"HTTP {status}: response is not JSON (first 500 chars): {text[:500]!r}"
+                        f"HTTP {status}: response is not JSON (first 500 chars): {safe_text[:500]!r}"
                     ) from je
 
                 if status and int(status) >= 400:
@@ -205,7 +208,7 @@ class GeneralAPIInterface(LLMInterface):
                     if isinstance(err_msg, dict):
                         err_msg = err_msg.get("message") or err_msg.get("type") or str(err_msg)
                     raise RuntimeError(
-                        f"HTTP {status} from {self.api_endpoint}: {err_msg or text[:800]!r}"
+                        f"HTTP {status} from {self.api_endpoint}: {err_msg or safe_text[:800]!r}"
                     )
 
                 # Some gateways return an error object with HTTP 200 and no choices.
@@ -216,7 +219,7 @@ class GeneralAPIInterface(LLMInterface):
                     else:
                         err_detail = str(err_obj)
                     raise RuntimeError(
-                        f"API error in body (no choices): {err_detail!r}; preview={text[:500]!r}"
+                        f"API error in body (no choices): {err_detail!r}; preview={safe_text[:500]!r}"
                     )
 
                 if "choices" not in json_data:
@@ -229,7 +232,7 @@ class GeneralAPIInterface(LLMInterface):
                     raise RuntimeError(
                         f"API response missing 'choices' (OpenAI chat format). "
                         f"error={err_detail!r}; top-level keys={keys}; "
-                        f"body_preview={text[:600]!r}"
+                        f"body_preview={safe_text[:600]!r}"
                     )
 
                 choice0 = json_data["choices"][0]
@@ -261,9 +264,9 @@ class GeneralAPIInterface(LLMInterface):
                         "request_bytes": len(payload),
                         "response_bytes": len(raw),
                         "usage": usage if isinstance(usage, dict) else None,
-                        "provider_model": json_data.get("model"),
-                        "provider_request_id": json_data.get("id"),
-                        "provider_cost": json_data.get("cost") or json_data.get("estimated_cost"),
+                        "response_model": json_data.get("model"),
+                        "response_request_id": json_data.get("id"),
+                        "response_cost": json_data.get("cost") or json_data.get("estimated_cost"),
                     }
                 )
                 return content
@@ -330,10 +333,12 @@ def _parse_temperature(value: Optional[float]) -> float:
 def _cache_path(cache_payload: dict) -> Optional[Path]:
     cache_dir = os.getenv("LLM_CACHE_DIR", "").strip()
     mode = os.getenv("LLM_CACHE_MODE", "off").strip().lower()
+    if mode not in {"off", "readwrite", "readonly", "refresh"}:
+        raise ValueError("LLM_CACHE_MODE must be one of: off, readwrite, readonly, refresh")
+    if mode == "readonly" and not cache_dir:
+        raise ValueError("Offline replay requires LLM_CACHE_DIR; refusing network access")
     if not cache_dir or mode == "off":
         return None
-    if mode not in {"readwrite", "readonly", "refresh"}:
-        raise ValueError("LLM_CACHE_MODE must be one of: off, readwrite, readonly, refresh")
     canonical = json.dumps(
         cache_payload, sort_keys=True, ensure_ascii=False, separators=(",", ":")
     ).encode("utf-8")
@@ -351,7 +356,7 @@ def _read_cached_response(path: Optional[Path]) -> Optional[str]:
     with path.open(encoding="utf-8") as f:
         record = json.load(f)
     response = record.get("response")
-    if not isinstance(response, str):
+    if not isinstance(response, str) or not response.strip():
         raise ValueError(f"Invalid LLM cache record: {path}")
     return response
 
@@ -380,15 +385,9 @@ def run_llm(
 ) -> str:
     """Generate a response using the configured LLM backend.
 
-    Supported gateways use GeneralAPIInterface. Hostnames and request paths are
-    configured separately. The unavailable private COMP adapter is rejected
-    before a network request; offline replay never permits network access."""
-    # Resolve a bare gateway hostname; keep the request path separate.
-    api_endpoint = normalize_llm_api_host(
-        api_endpoint or os.getenv("LLM_API_ENDPOINT", "api.bltcy.ai")
-    )
-    api_key = api_key or os.getenv("LLM_API_KEY", "")
-    model = model or os.getenv("LLM_MODEL", "gpt-3.5-turbo")
+    Hostname and model are supplied explicitly or through the user's environment.
+    Offline replay never permits network access."""
+    api_endpoint, api_key, model = resolve_llm_connection_settings(api_endpoint, api_key, model)
     auth_mode = auth_mode or os.getenv("LLM_AUTH_MODE", "bearer")
     merged_extra = _parse_extra_headers_from_env()
     if extra_headers:
@@ -396,25 +395,13 @@ def run_llm(
     req_path = request_path or os.getenv("LLM_REQUEST_PATH", "/v1/chat/completions")
     resolved_temperature = _parse_temperature(temperature)
 
-    backend = (os.getenv("LLM_BACKEND") or "").strip().lower()
-    if backend in ("comp", "comp_openai", "azure_apim", "azure"):
-        if os.getenv("LLM_CACHE_MODE", "").strip().lower() == "readonly":
-            raise ValueError(
-                "COMP backend has no offline replay support; refusing network access"
-            )
-        raise ValueError(
-            "The private COMP/Azure adapter is not included. Configure an "
-            "OpenAI-compatible provider with an explicit endpoint and request path."
-        )
-
-    if not api_key:
+    if not api_key and not is_local_api_host(api_endpoint) and os.getenv("LLM_CACHE_MODE", "").strip().lower() != "readonly":
         raise ValueError(
             "LLM API key not provided. Set LLM_API_KEY environment variable or pass api_key parameter.\n"
             "Example: export LLM_API_KEY='your-api-key'"
         )
 
     cache_payload = {
-        "backend": backend or "openai_compatible",
         "host": api_endpoint,
         "model": model,
         "request_path": req_path,

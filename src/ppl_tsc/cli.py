@@ -102,7 +102,6 @@ def _apply_api_profile(
         return
     profile = _read_json(profile_path)
     allowed = {
-        "provider",
         "endpoint",
         "request_path",
         "model",
@@ -502,23 +501,33 @@ def _build_internal_argv(
     search = _section(config, "search")
     evaluation = _section(config, "evaluation")
 
-    provider = str(llm.get("provider", "openai_compatible")).strip().lower()
-    backend_map = {
-        "openai_compatible": "1",
-        "local": "1",
-        "yunwu": "4",
-    }
-    if provider not in backend_map:
-        raise ValueError(
-            f"Unsupported llm.provider {provider!r}; choose from {sorted(backend_map)}"
-        )
+    allowed_llm = {"endpoint", "request_path", "model", "api_key_env", "temperature", "auth_mode",
+                   "cache_dir", "cache_mode", "cache_key_mode"}
+    if set(llm) - allowed_llm:
+        raise ValueError("Unsupported API settings: " + ", ".join(sorted(set(llm) - allowed_llm)))
 
     traffic_config = _root_path(str(data.get("traffic_config", "configs/traffic.json")))
     output_dir = _root_path(str(_required(experiment, "output_dir", "experiment")))
-    endpoint = str(_required(llm, "endpoint", "llm"))
-    model = str(_required(llm, "model", "llm"))
-    request_path = str(llm.get("request_path", "/v1/chat/completions"))
+    from ppl_tsc.artifacts import validate_output_path
+    validate_output_path(output_dir, project_root=ROOT)
+    from utilities.utils import normalize_llm_api_host
+    endpoint = _required(llm, "endpoint", "llm")
+    model = _required(llm, "model", "llm")
+    if not isinstance(endpoint, str) or not isinstance(model, str) or not model.strip():
+        raise ValueError("API address and model must be nonempty strings; run configure_api.py")
+    endpoint = normalize_llm_api_host(endpoint)
+    model = model.strip()
+    if not endpoint:
+        raise ValueError("API address is required; run configure_api.py")
+    request_path = llm.get("request_path", "/v1/chat/completions")
+    if not isinstance(request_path, str) or not request_path.startswith("/") or request_path.startswith("//") or any(c in request_path for c in "\r\n?#"):
+        raise ValueError("The chat request path must start with / and contain no query, fragment or newline")
     temperature = float(llm.get("temperature", 0.0))
+    if not math.isfinite(temperature) or not 0 <= temperature <= 2:
+        raise ValueError("API temperature must be between 0 and 2")
+    auth_mode = str(llm.get("auth_mode", "bearer")).strip().lower().replace("-", "_")
+    if auth_mode not in {"bearer", "api_key"}:
+        raise ValueError("Authentication must be bearer or api_key")
     random_seed = int(experiment.get("random_seed", 0))
     simulation_seed = int(evaluation.get("simulation_seed", random_seed))
 
@@ -649,19 +658,18 @@ def _build_internal_argv(
 
     api_key_env = str(llm.get("api_key_env", "LLM_API_KEY"))
     api_key = os.getenv(api_key_env, "").strip()
+    from utilities.utils import is_local_api_host
     if offline or validate_only:
         api_key = "CACHE_REPLAY_ONLY"
-    elif provider == "local" and not api_key:
-        api_key = "EMPTY"
+    elif not api_key and is_local_api_host(endpoint):
+        api_key = ""
     elif not api_key:
         raise ValueError(f"API key is missing. Set {api_key_env} before running this experiment.")
 
     method_project_root = ROOT
-    # Public JSON provider takes precedence over stale research-shell settings.
-    os.environ["LLM_BACKEND"] = "yunwu" if provider == "yunwu" else "openai_compatible"
     os.environ["LLM_API_KEY"] = api_key
     os.environ["LLM_REQUEST_PATH"] = request_path
-    os.environ["LLM_AUTH_MODE"] = str(llm.get("auth_mode", "bearer"))
+    os.environ["LLM_AUTH_MODE"] = auth_mode
     os.environ["LLM_TEMPERATURE"] = str(temperature)
 
     cache_dir = _root_path(str(llm.get("cache_dir", ".cache/llm")))
@@ -684,8 +692,6 @@ def _build_internal_argv(
         str(traffic_config),
         "--output_dir",
         str(output_dir),
-        "--llm_backend",
-        backend_map[provider],
         "--llm_api_endpoint",
         endpoint,
         "--llm_model",
@@ -742,7 +748,6 @@ def _build_internal_argv(
         argv.append("--no_constraint_validation")
 
     resolved = {
-        "provider": provider,
         "endpoint": endpoint,
         "request_path": request_path,
         "model": model,

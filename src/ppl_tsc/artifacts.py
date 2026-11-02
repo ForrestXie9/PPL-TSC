@@ -8,6 +8,16 @@ from pathlib import Path
 import tempfile
 
 
+def validate_output_path(path, *inputs, project_root):
+    """Reject input aliases and result paths inside bundled source or data."""
+    target = Path(path).resolve()
+    if target in {Path(source).resolve() for source in inputs}:
+        raise ValueError("Output must not overwrite input files")
+    root = Path(project_root).resolve()
+    if any(target.is_relative_to((root / name).resolve()) for name in ("data", "configs", "src", "scripts", "CityFlow", ".git")):
+        raise ValueError("Output must not overwrite source assets; choose a result directory such as outputs/")
+
+
 def atomic_json(path, value, *, overwrite=True):
     """Publish complete JSON, optionally requiring a new destination."""
     path = Path(path)

@@ -48,8 +48,9 @@ def main():
     parser.add_argument('--output',type=Path,required=True)
     args=parser.parse_args()
     audit_path=args.training_audit or args.checkpoint.parent/'audit.json'
-    if args.output.resolve() in {args.checkpoint.resolve(),audit_path.resolve()}:
-        parser.error("Output must not overwrite the teacher checkpoint")
+    from ppl_tsc.artifacts import validate_output_path
+    try:validate_output_path(args.output,args.checkpoint,audit_path,project_root=ROOT)
+    except ValueError as exc:parser.error(str(exc))
     if args.output.exists():parser.error('Trajectory output already exists; use a new path')
     provenance=validate_checkpoint_audit(args.checkpoint,audit_path,args.teacher,ROOT/'data'/args.scenario/'roadnet.json',args.allow_unaudited_checkpoint,
                                          traffic_config=ROOT/'configs/traffic.json',environment_semantics='per_decision')

@@ -9,7 +9,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'src'))
-from ppl_tsc.artifacts import atomic_json, new_gzip_jsonl
+from ppl_tsc.artifacts import atomic_json, new_gzip_jsonl, validate_output_path
 
 
 def phase_projection(source, destination, *, loader=None):
@@ -53,9 +53,13 @@ def main():
     parser.add_argument('--trajectory', required=True, type=Path)
     parser.add_argument('--output-dir', required=True, type=Path)
     parser.add_argument('--seed', type=int, default=2026103101)
-    parser.add_argument('--endpoint', default='api.n1n.ai')
-    parser.add_argument('--model', default='gemini-3.1-flash-lite')
+    parser.add_argument('--endpoint', help='Optional API hostname; otherwise use configure_api.py settings')
+    parser.add_argument('--model', help='Optional model name; otherwise use configure_api.py settings')
     args = parser.parse_args()
+    try:
+        validate_output_path(args.output_dir, project_root=ROOT)
+    except ValueError as exc:
+        parser.error(str(exc))
     from ppl_tsc.data.loader import TeacherDataLoader
     from ppl_tsc.data.preparation import prepare_source
 
@@ -98,7 +102,11 @@ def main():
         output_dir=str(output), random_seed=args.seed)
     config['data'].update(teacher_data=str(trajectory), traffic_config=str(traffic_path))
     config['evaluation']['simulation_seed'] = meta['seed']
-    config['llm'].update(endpoint=args.endpoint, model=args.model, cache_dir=str(output / 'llm_cache'))
+    config['llm']['cache_dir'] = str(output / 'llm_cache')
+    if args.endpoint:
+        config['llm']['endpoint'] = args.endpoint
+    if args.model:
+        config['llm']['model'] = args.model
     atomic_json(destination, config, overwrite=False)
     print(destination)
 

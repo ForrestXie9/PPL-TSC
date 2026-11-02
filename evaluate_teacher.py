@@ -43,8 +43,9 @@ def main():
  p.add_argument('--protocol',required=True,choices=['same_network','source_agent0'])
  p.add_argument('--output',required=True,type=Path)
  a=p.parse_args()
- if a.output.resolve() in {a.checkpoint.resolve(),a.training_audit.resolve()}:p.error('Output must not overwrite checkpoint or training audit')
- from ppl_tsc.artifacts import evaluation_record
+ from ppl_tsc.artifacts import evaluation_record,validate_output_path
+ try:validate_output_path(a.output,a.checkpoint,a.training_audit,project_root=ROOT)
+ except ValueError as exc:p.error(str(exc))
  with evaluation_record(a.output, {'checkpoint_path':str(a.checkpoint.resolve()),'scenario':a.scenario,'flow':a.flow,'protocol':a.protocol}) as commit_result:
   audit=json.loads(a.training_audit.read_text());teacher=audit['teacher']
   if teacher not in {'CoLight','EcoLight','FRAP','MPLight','TinyLight'}:p.error('Unsupported teacher in training audit')

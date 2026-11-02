@@ -7,7 +7,9 @@ import datetime
 import logging
 import json
 import copy
+import ipaddress
 from typing import Optional
+from urllib.parse import urlsplit
 
 
 def infer_dataset_name_from_teacher_path(teacher_data_path: Optional[str]) -> Optional[str]:
@@ -28,57 +30,47 @@ def infer_dataset_name_from_teacher_path(teacher_data_path: Optional[str]) -> Op
 
 
 def normalize_llm_api_host(api_endpoint: Optional[str]) -> str:
-    """Strip scheme/path so http.client HTTPSConnection receives hostname only."""
+    """Normalize an explicit API address to a hostname and optional port."""
     s = (api_endpoint or "").strip()
     if not s:
         return s
-    s = re.sub(r"^https?://", "", s, flags=re.I)
-    s = s.split("/", 1)[0].strip()
-    return s
+    parsed = urlsplit(s if "://" in s else "https://" + s)
+    if parsed.scheme.lower() not in {"http", "https"} or not parsed.hostname:
+        raise ValueError("API address must use an HTTP(S) hostname")
+    if parsed.username is not None or parsed.password is not None or parsed.query or parsed.fragment:
+        raise ValueError("API address must not contain credentials, a query or a fragment")
+    if any(char.isspace() for char in parsed.netloc):
+        raise ValueError("API address must not contain whitespace")
+    parsed.port  # Validate the optional port before making a request.
+    return parsed.netloc
+
+
+def is_local_api_host(api_endpoint: str) -> bool:
+    """Recognize actual loopback addresses, including an optional port."""
+    hostname = urlsplit("//" + normalize_llm_api_host(api_endpoint)).hostname
+    if hostname == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(hostname).is_loopback
+    except ValueError:
+        return False
 
 
 def resolve_llm_connection_settings(
     args_endpoint: Optional[str], args_key: Optional[str], args_model: Optional[str]
 ):
-    """Resolve CLI values, then environment values, then gateway defaults."""
-    backend = (os.getenv("LLM_BACKEND") or "").strip().lower()
-    if backend in {"comp", "comp_openai", "azure_apim", "azure"}:
-        raise ValueError("The private COMP/Azure adapter is not included; use an OpenAI-compatible provider")
-    if backend in {"jiekou", "jiekou_ai"}:
-        default_endpoint, default_model = "api.jiekou.ai", "gpt-4o-mini"
-    elif backend in {"yunwu", "yunwu_ai"}:
-        default_endpoint, default_model = "yunwu.ai", "gpt-4o-mini"
-    else:
-        default_endpoint, default_model = "127.0.0.1:8000", "qwen2.5-32b"
-    endpoint = normalize_llm_api_host(args_endpoint or os.getenv("LLM_API_ENDPOINT") or default_endpoint)
+    """Resolve explicit CLI values followed by the user's environment values."""
+    endpoint = normalize_llm_api_host(args_endpoint or os.getenv("LLM_API_ENDPOINT"))
     key = (args_key or os.getenv("LLM_API_KEY") or "").strip()
-    model = (args_model or os.getenv("LLM_MODEL") or default_model).strip()
+    model = (args_model or os.getenv("LLM_MODEL") or "").strip()
+    if not endpoint or not model:
+        raise ValueError("API address and model are required. Run configure_api.py or set LLM_API_ENDPOINT and LLM_MODEL.")
     return endpoint, key, model
 
 
 def llm_api_key_missing_message() -> str:
     """Describe the supported credential configuration without referencing source profiles."""
     return "LLM API key missing. Run configure_api.py, set LLM_API_KEY, or pass --llm_api_key."
-
-
-def apply_llm_backend_cli_choice(cli_choice: Optional[str]) -> None:
-    """Select a public gateway preset while preserving explicit environment settings."""
-    if cli_choice is None:
-        return
-    choice = str(cli_choice).strip()
-    if choice == "2":
-        raise ValueError("Backend 2 requires an unbundled private adapter; use backend 1 instead")
-    if choice not in {"1", "3", "4"}:
-        raise ValueError("LLM backend must be 1 (general), 3 (Jiekou), or 4 (Yunwu)")
-    if choice == "1":
-        os.environ.pop("LLM_BACKEND", None)
-    else:
-        os.environ["LLM_BACKEND"] = "jiekou" if choice == "3" else "yunwu"
-    request_path = "/openai/v1/chat/completions" if choice == "3" else "/v1/chat/completions"
-    os.environ.setdefault("LLM_REQUEST_PATH", request_path)
-    os.environ.setdefault("LLM_AUTH_MODE", "bearer")
-    if choice in {"1", "4"}:
-        os.environ.setdefault("LLM_TEMPERATURE", "0")
 
 
 def validate_cityflow_roadnet_file(data_dir: str, roadnet_file: str = "roadnet.json") -> None:

@@ -11,10 +11,9 @@ def print_llm_startup_banner(
     *,
     title: str = "LLM configuration",
 ) -> None:
-    backend = os.getenv("LLM_BACKEND") or "openai_compatible"
     request_path = os.getenv("LLM_REQUEST_PATH", "/v1/chat/completions")
     temperature = os.getenv("LLM_TEMPERATURE", "0.8")
     print(
-        f"{title}: backend={backend}; host={llm_api_endpoint}; "
+        f"{title}: host={llm_api_endpoint}; "
         f"model={llm_model}; path={request_path}; temperature={temperature}"
     )

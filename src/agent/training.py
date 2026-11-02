@@ -47,6 +47,9 @@ def main():
     from utilities.utils import get_config,get_agent,set_seed,set_thread
     from utilities.snippets import run_an_episode
     from ppl_tsc import cli as runner
+    from ppl_tsc.artifacts import validate_output_path
+    try:validate_output_path(args.output_dir,project_root=ROOT)
+    except ValueError as exc:parser.error(str(exc))
     args.output_dir.mkdir(parents=True,exist_ok=True)
     lock=(args.output_dir/'.lock').open('w');fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
     if args.device.startswith('cuda') and not torch.cuda.is_available():raise RuntimeError('CUDA is unavailable')
