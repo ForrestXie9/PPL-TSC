@@ -21,6 +21,7 @@ from typing import Any
 
 
 from ppl_tsc.paths import PROJECT_ROOT as ROOT
+from ppl_tsc.artifacts import atomic_json
 
 SRC = ROOT / "src"
 DEFAULT_API_PROFILE = ROOT / "configs/api.local.json"
@@ -405,6 +406,28 @@ def _run_output_guard(config, resolved, teacher_data_paths, output_dir):
             finally:
                 temporary.unlink(missing_ok=True)
         yield
+
+
+@contextmanager
+def _run_manifest_status(output_dir):
+    """Record each admitted attempt, including failed retries and interruptions."""
+    path = output_dir / "run_manifest.json"
+    started_at = datetime.now(timezone.utc).isoformat()
+    state = {"status": "running", "started_at_utc": started_at}
+    atomic_json(path, state)
+    try:
+        yield started_at
+        if _read_json(path).get("status") != "completed":
+            raise RuntimeError("Run exited without a completed manifest")
+    except BaseException as exc:
+        atomic_json(path, {
+            **state,
+            "status": "failed",
+            "finished_at_utc": datetime.now(timezone.utc).isoformat(),
+            "error_type": type(exc).__name__,
+            "error": str(exc),
+        })
+        raise
 
 
 def _prepare_resume_manifest(
@@ -875,8 +898,7 @@ def _write_manifest(
     }
     output_dir.mkdir(parents=True, exist_ok=True)
     manifest_path = output_dir / "run_manifest.json"
-    with manifest_path.open("w", encoding="utf-8") as f:
-        json.dump(manifest, f, ensure_ascii=False, indent=2)
+    atomic_json(manifest_path, manifest)
     return manifest_path
 
 
@@ -978,7 +1000,7 @@ def main() -> int:
         print("Configuration is valid. No experiment was started.")
         return 0
 
-    with _run_output_guard(config, resolved, teacher_data_paths, output_dir):
+    with _run_output_guard(config, resolved, teacher_data_paths, output_dir), _run_manifest_status(output_dir) as started_at:
         matrix_complete = False
         if args.resume and not args.dry_run:
             matrix_complete = _prepare_resume_manifest(
@@ -988,7 +1010,6 @@ def main() -> int:
                 internal_argv=internal_argv,
             )
 
-        started_at = datetime.now(timezone.utc).isoformat()
         if matrix_complete:
             manifest = _write_manifest(
                 config_path,

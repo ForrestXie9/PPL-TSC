@@ -14,8 +14,15 @@ def validate_output_path(path, *inputs, project_root):
     if target in {Path(source).resolve() for source in inputs}:
         raise ValueError("Output must not overwrite input files")
     root = Path(project_root).resolve()
-    if any(target.is_relative_to((root / name).resolve()) for name in ("data", "configs", "src", "scripts", "CityFlow", ".git")):
+    if any(target.is_relative_to((root / name).resolve()) for name in ("data", "configs", "src", "scripts", "CityFlow", ".git", ".venv")):
         raise ValueError("Output must not overwrite source assets; choose a result directory such as outputs/")
+    root_assets = [
+        *root.glob("*.py"),
+        *root.glob(".env*"),
+        *(root / name for name in ("README.md", "THIRD_PARTY_NOTICES.md", "requirements.txt", ".gitignore", ".gitattributes")),
+    ]
+    if target in {asset.resolve() for asset in root_assets}:
+        raise ValueError("Output must not overwrite source assets or local API settings; choose outputs/")
 
 
 def atomic_json(path, value, *, overwrite=True):
