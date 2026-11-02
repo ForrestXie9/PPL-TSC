@@ -28,7 +28,6 @@ from utilities.utils import (
     infer_dataset_name_from_teacher_path,
     validate_cityflow_roadnet_file,
     resolve_llm_connection_settings,
-    apply_llm_backend_cli_choice,
     llm_api_key_missing_message,
     set_seed,
 )
@@ -601,8 +600,7 @@ def main(argv=None, *, method_profile="custom"):
         "--teachers_config",
         type=str,
         default=None,
-        help="Path to JSON config. Two formats supported: (1) List format: one teacher per entry, run sequentially (one model per roadnet). "
-        '(2) Joint format: {"teacher_model": "MPLight", "roadnet_configs": [{...}, ...]}, one model for all roadnets. Auto-detected by structure.',
+        help="Path to a JSON array of teacher/source configurations, run sequentially with a separate policy per entry.",
     )
 
     parser.add_argument(
@@ -617,7 +615,7 @@ def main(argv=None, *, method_profile="custom"):
         "--llm_api_endpoint",
         type=str,
         default=None,
-        help="LLM API hostname. Defaults to LLM_API_ENDPOINT or the selected gateway preset.",
+        help="LLM API hostname (or set LLM_API_ENDPOINT).",
     )
 
     parser.add_argument(
@@ -628,18 +626,7 @@ def main(argv=None, *, method_profile="custom"):
         "--llm_model",
         type=str,
         default=None,
-        help="Model name. Defaults to LLM_MODEL or the selected gateway preset.",
-    )
-
-    parser.add_argument(
-        "--llm_backend",
-        type=str,
-        default="1",
-        choices=["1", "3", "4"],
-        help=(
-            "1: general OpenAI-compatible API (default); 3: Jiekou; 4: Yunwu. "
-            "Explicit CLI and environment settings override preset defaults."
-        ),
+        help="Model name (or set LLM_MODEL).",
     )
 
     parser.add_argument(
@@ -822,7 +809,6 @@ def main(argv=None, *, method_profile="custom"):
     args = parser.parse_args(argv)
     args.method_profile = method_profile
 
-    apply_llm_backend_cli_choice(getattr(args, "llm_backend", None))
     set_seed(int(args.random_seed), use_torch=False)
 
     # score_mode has priority and rewrites weights for reproducible ablation setups.
@@ -847,7 +833,8 @@ def main(argv=None, *, method_profile="custom"):
         args.llm_model,
     )
 
-    if not llm_api_key:
+    from utilities.utils import is_local_api_host
+    if not llm_api_key and not is_local_api_host(llm_api_endpoint):
         raise ValueError(llm_api_key_missing_message())
 
     from ppl_tsc.llm.runtime_info import print_llm_startup_banner

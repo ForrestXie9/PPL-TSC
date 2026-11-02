@@ -9,7 +9,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT), str(ROOT / 'src')]
 from evaluate import validate_deployment
-from ppl_tsc.artifacts import atomic_json
+from ppl_tsc.artifacts import atomic_json, validate_output_path
 
 
 def main():
@@ -17,6 +17,10 @@ def main():
     parser.add_argument('--deployment', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
+    try:
+        validate_output_path(args.output, args.deployment, project_root=ROOT)
+    except ValueError as exc:
+        parser.error(str(exc))
     if args.output.exists() or args.output.is_symlink() or args.output.resolve() == args.deployment.resolve():
         parser.error('Output must be a new file')
     source_bytes = args.deployment.read_bytes()

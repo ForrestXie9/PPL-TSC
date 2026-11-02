@@ -10,10 +10,9 @@
     "traffic_config": "configs/traffic.json"
   },
   "llm": {
-    "provider": "openai_compatible",
-    "endpoint": "api.n1n.ai",
+    "endpoint": "",
     "request_path": "/v1/chat/completions",
-    "model": "gemini-3.1-flash-lite",
+    "model": "",
     "api_key_env": "LLM_API_KEY",
     "temperature": 0.8,
     "cache_mode": "readwrite",

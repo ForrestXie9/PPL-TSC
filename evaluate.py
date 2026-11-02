@@ -79,9 +79,11 @@ def main() -> int:
                         help="Explicit waiting-time accumulation mode; default is recorded in the policy")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
-    if args.output.resolve() == args.deployment.resolve():
-        parser.error("Output must not overwrite deployment")
-    from ppl_tsc.artifacts import evaluation_record
+    from ppl_tsc.artifacts import evaluation_record, validate_output_path
+    try:
+        validate_output_path(args.output, args.deployment, project_root=ROOT)
+    except ValueError as exc:
+        parser.error(str(exc))
     with evaluation_record(args.output, {"deployment_path": str(args.deployment.resolve()), "scenario": args.scenario, "flow": args.flow}) as commit_result:
         deployment = json.loads(args.deployment.read_text())
         scenario_dir = ROOT / "data" / args.scenario
